@@ -295,7 +295,6 @@ jobs:
               enable_config CONFIG_CGROUP_SCHEDTUNE
             elif [[ "${{ inputs.KERNEL_TWEAK }}" == "hmp" ]]; then
               echo "⚡ Applying Safe HMP Scheduler Optimizations..."
-              enable_config CONFIG_SCHED_WALT
               enable_config CONFIG_ENERGY_MODEL
               enable_config CONFIG_CPU_FREQ_GOV_INTERACTIVE
               disable_config CONFIG_CPU_FREQ_GOV_SCHEDUTIL
