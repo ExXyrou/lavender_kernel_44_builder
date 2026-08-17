@@ -568,7 +568,7 @@ jobs:
           body: |
             ### 📱 Redmi Note 7 Kernel Build
             - **Kernel Version:** 4.4${{ inputs.LOCALVERSION }}
-            - **Performance Profile:** ${{ inputs.KERNEL_TWEAK }}
+            - **Profile:** ${{ inputs.KERNEL_TWEAK }}
             - **KernelSU Variant:** ${{ inputs.INJECT_KSU }}
             - **Build Date:** `${{ steps.img.outputs.timestamp }}`
           files: ${{ steps.img.outputs.zip_path }}
