@@ -78,17 +78,6 @@ on:
           - none
           - xxKSU
 
-      UBUNTU_VERSION:
-        description: '🐧 Select Ubuntu Version'
-        required: true
-        default: 'ubuntu-latest'
-        type: choice
-        options:
-          - ubuntu-latest
-          - ubuntu-24.04
-          - ubuntu-22.04
-          - ubuntu-20.04
-
       CLANG_SOURCE:
         description: '🧰 Select Clang Toolchain (Ignored for "san" or "predator-strombreaker")'
         required: true
@@ -113,7 +102,7 @@ env:
 
 jobs:
   build:
-    runs-on: ${{ inputs.UBUNTU_VERSION }}
+    runs-on: ubuntu-latest
     permissions:
       contents: write
 
@@ -226,7 +215,6 @@ jobs:
             "${{ inputs.KERNEL_DEFCONFIG }}" \
             "${{ inputs.KERNEL_TWEAK }}" \
             "${{ inputs.INJECT_KSU }}" \
-            "${{ inputs.UBUNTU_VERSION }}" \
             "@${{ github.actor }}")
 
           curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendMessage" \
@@ -286,7 +274,7 @@ jobs:
             rm -f custom_clang.archive
           fi
 
-      - name: 🛠️ Fix DTC & Lexer Compilation Errors
+      - name: 🛠️ Fix Resource Errors
         working-directory: ${{ env.KERNEL_DIR }}
         run: |
           if [ -f scripts/dtc/dtc-parser.tab.c ]; then
@@ -300,13 +288,13 @@ jobs:
               's/^YYLTYPE yylloc;/extern YYLTYPE yylloc;/' \
               scripts/dtc/dtc-lexer.lex.c_shipped
           fi
-
-      - name: 🩹 Fix Scheduler Compilation Error
-        working-directory: ${{ env.KERNEL_DIR }}
-        run: |
+          
+          if [ "${{ inputs.KERNEL_SOURCE }}" == "san" ]; then
+            echo "" > "${{ env.KERNEL_DIR }}/.scmversion"
+          fi
+          
           if [ -f kernel/sched/sched.h ]; then
             sed -i 's/cpu_rq(cpu)->cfs->cumulative_runnable_avg/cpu_rq(cpu)->cfs.cumulative_runnable_avg/g' kernel/sched/sched.h
-            echo "✅ Successfully patched cumulative_runnable_avg reference."
           fi
 
       - name: ⚙️ Generate Kernel Configuration (Defconfig)
