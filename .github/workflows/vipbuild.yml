@@ -181,7 +181,7 @@ jobs:
         id: resolve-clang
         run: |
           KERNEL_SRC="${{ inputs.KERNEL_SOURCE }}"
-          
+
           if [ "$KERNEL_SRC" == "san" ]; then
             echo "FINAL_CLANG_SOURCE=neutron" >> $GITHUB_ENV
             echo "✅ Override: Neutron Clang automatically selected for San Kernel."
@@ -192,7 +192,7 @@ jobs:
           else
             USER_CLANG="${{ inputs.CLANG_SOURCE }}"
             echo "FINAL_CLANG_SOURCE=$USER_CLANG" >> $GITHUB_ENV
-            
+
             if [ "$USER_CLANG" == "custom" ]; then
               if [ -z "${{ inputs.CUSTOM_CLANG_URL }}" ]; then
                 echo "❌ ERROR: You selected 'custom' Clang, but the CUSTOM_CLANG_URL is empty!"
@@ -347,9 +347,8 @@ jobs:
           if [ "${{ inputs.KERNEL_TWEAK }}" == "none" ]; then
             echo "ℹ️ Performance profile set to 'none'. Skipping optimizations."
           else
-            echo "🔥 Applying Base Optimizations & Disabling Debugging Overhead..."
+            echo "🔥 Applying Base Optimizations & Disabling Pure-Debug Overhead..."
             disable_config CONFIG_DEBUG_INFO
-            disable_config CONFIG_DEBUG_FS
             disable_config CONFIG_KASAN
             disable_config CONFIG_LOCKDEP
             enable_config CONFIG_JUMP_LABEL
@@ -363,17 +362,14 @@ jobs:
               disable_config CONFIG_DEBUG_KERNEL
               disable_config CONFIG_FTRACE
               disable_config CONFIG_PROFILING
-              disable_config CONFIG_SCHED_DEBUG
               disable_config CONFIG_SLUB_DEBUG
               disable_config CONFIG_PM_DEBUG
 
-              echo "🌋 Disabling Background Preemption & Latency Overhead..."
+              echo "🌋 Disabling Pure Debug/Lock-Instrumentation Overhead (aman untuk boot & scheduler)..."
               enable_config CONFIG_PREEMPT
               disable_config CONFIG_PREEMPT_VOLUNTARY
               disable_config CONFIG_PREEMPT_NONE
               disable_config CONFIG_DEBUG_PREEMPT
-              disable_config CONFIG_SCHEDSTATS
-              disable_config CONFIG_SCHED_INFO
               disable_config CONFIG_DETECT_HUNG_TASK
               disable_config CONFIG_RCU_TRACE
 
@@ -393,32 +389,36 @@ jobs:
               disable_config CONFIG_CC_OPTIMIZE_FOR_SIZE
               enable_config CONFIG_CC_OPTIMIZE_FOR_PERFORMANCE
 
-              disable_config CONFIG_KALLSYMS_ALL
             else
               echo "⚖️ Applying STABLE/DAILY Performance Profile (300Hz)..."
               set_config CONFIG_HZ 300
               enable_config CONFIG_HZ_300
               disable_config CONFIG_HZ_1000
               disable_config CONFIG_HZ_100
+
+              echo "⚖️ Daily-use micro-tweaks (ringan, tidak menyentuh WiFi/jaringan)..."
+              enable_config CONFIG_SCHED_AUTOGROUP
+              enable_config CONFIG_NO_HZ_IDLE
+              enable_config CONFIG_HIGH_RES_TIMERS
             fi
 
             if [[ "${{ inputs.KERNEL_TWEAK }}" == "eas"* ]]; then
-              echo "⚡ Applying EAS Scheduler Configurations..."
+              echo "⚡ Applying EAS Scheduler Configurations (murni jalur EAS)..."
               enable_config CONFIG_SCHED_WALT
               enable_config CONFIG_ENERGY_MODEL
               enable_config CONFIG_CPU_FREQ_GOV_SCHEDUTIL
-              enable_config CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL
               disable_config CONFIG_CPU_FREQ_GOV_INTERACTIVE
+              enable_config CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL
               disable_config CONFIG_CPU_FREQ_DEFAULT_GOV_INTERACTIVE
               set_config CONFIG_DEFAULT_GOVERNOR schedutil
 
             elif [[ "${{ inputs.KERNEL_TWEAK }}" == "hmp"* ]]; then
-              echo "⚡ Applying HMP Scheduler Configurations..."
+              echo "⚡ Applying HMP Scheduler Configurations (murni jalur HMP)..."
+              enable_config CONFIG_SCHED_WALT
+              enable_config CONFIG_ENERGY_MODEL
               enable_config CONFIG_CPU_FREQ_GOV_INTERACTIVE
-              enable_config CONFIG_CPU_FREQ_DEFAULT_GOV_INTERACTIVE
-              disable_config CONFIG_SCHED_WALT
-              disable_config CONFIG_ENERGY_MODEL
               disable_config CONFIG_CPU_FREQ_GOV_SCHEDUTIL
+              enable_config CONFIG_CPU_FREQ_DEFAULT_GOV_INTERACTIVE
               disable_config CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL
               set_config CONFIG_DEFAULT_GOVERNOR interactive
             fi
@@ -442,7 +442,7 @@ jobs:
         working-directory: ${{ env.KERNEL_DIR }}
         run: |
           set -o pipefail
-          
+
           export KCFLAGS="-Wno-address -Wno-implicit-function-declaration"
 
           export PATH="/usr/lib/ccache:$GITHUB_WORKSPACE/$CLANG_DIR/bin:$PATH"
@@ -563,7 +563,7 @@ jobs:
         if: success()
         run: |
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          RELEASE_URL="${{ github.server_url }}/${{ github.repository }}/releases/#{{ github.run_number }}"
+          RELEASE_URL="${{ github.server_url }}/${{ github.repository }}/tags/#{{ github.run_number }}"
           END_TIME=$(date +%s)
           DURATION=$((END_TIME - ${{ env.BUILD_START_TIME }}))
           DURATION_STR="$((DURATION / 60))m $((DURATION % 60))s"
