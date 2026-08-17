@@ -308,8 +308,6 @@ jobs:
             echo "Configuring xxKSU Build Options..."
             enable_config CONFIG_KSU
             enable_config CONFIG_KSU_TAMPER_SYSCALL_TABLE
-            echo "Enabling CONFIG_OVERLAY_FS for KernelSU support..."
-            enable_config CONFIG_OVERLAY_FS
           fi
 
           make \
