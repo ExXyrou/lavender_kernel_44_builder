@@ -1,0 +1,221 @@
+name: 🛠️ EAS KERNEL BUILDER
+
+on:
+  workflow_dispatch:
+    inputs:
+      LOCALVERSION:
+        description: '🏷️ Custom Kernel Name (e.g., -MyKernel-v1.0)'
+        required: false
+        type: string
+      DEFAULT_HOSTNAME:
+        description: '💻 Kernel Hostname'
+        required: true
+        default: 'xiaomi@redmi'
+        type: string
+      BUILD_USER:
+        description: '👤 Build Username'
+        required: true
+        default: 'xiaomi'
+        type: string
+      BUILD_HOST:
+        description: '🖥️ Build Hostname'
+        required: true
+        default: 'redmi'
+        type: string
+      APPLY_TWEAKS:
+        description: '🚀 Apply Performance & Gaming Tweaks'
+        required: true
+        default: true
+        type: boolean
+      INJECT_KSU:
+        description: '🦊 Inject xxKernelSU'
+        required: true
+        default: false
+        type: boolean
+
+env:
+  KERNEL_DIR: kernel_source
+  CLANG_DIR: clang
+  OUT_DIR: out
+  ARCH: arm64
+  SUBARCH: arm64
+  KERNEL_URL: https://github.com/ExXyrou/san_kernel.git
+  KERNEL_BRANCH: oldcam
+  DEFCONFIG: lavender_defconfig
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: 🔄 Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: ⏱️ Record Build Start Time
+        run: echo "BUILD_START_TIME=$(date +%s)" >> $GITHUB_ENV
+
+      - name: 📦 Install Build Dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo apt-get update -yq
+          sudo apt-get install -yq --no-install-recommends \
+            bc bison libssl-dev libelf-dev build-essential python3 python3-pip curl git zip unzip wget ccache libncurses-dev rsync gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi
+            
+      - name: ⚡ Setup Compiler Cache
+        run: |
+          ccache --max-size=2G
+          echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
+
+      - name: 💾 Restore Compiler Cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-eas-${{ env.DEFCONFIG }}-${{ github.run_id }}
+          restore-keys: |
+            ccache-eas-${{ env.DEFCONFIG }}-
+
+      - name: 📢 Notify Telegram - Build Started
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          MESSAGE=$(printf '🛠️ <b>VIP LAVENDER KERNEL BUILD [EAS]</b>\n━━━━━━━━━━━━━━━━━━━\n📱 <b>Device:</b> Lavender\n🏷️ <b>Kernel:</b> 4.4%s\n🚀 <b>Tweaks:</b> %s\n🦊 <b>KSU:</b> %s\n👤 <b>By:</b> %s' "${{ inputs.LOCALVERSION }}" "${{ inputs.APPLY_TWEAKS }}" "${{ inputs.INJECT_KSU }}" "@${{ github.actor }}")
+          curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendMessage" --data-urlencode chat_id="${{ secrets.CHAT_ID }}" --data-urlencode parse_mode="HTML" --data-urlencode text="$MESSAGE" --data-urlencode reply_markup="{\"inline_keyboard\":[[{\"text\":\"📄 View Logs\",\"url\":\"$RUN_URL\"}]]}"
+
+      - name: 📥 Clone Kernel Source
+        run: |
+          rm -rf "${{ env.KERNEL_DIR }}"
+          git clone --depth=1 -b "${{ env.KERNEL_BRANCH }}" "${{ env.KERNEL_URL }}" "${{ env.KERNEL_DIR }}"
+
+      - name: 🦊 Inject KernelSU
+        if: ${{ inputs.INJECT_KSU == true }}
+        working-directory: ${{ env.KERNEL_DIR }}
+        run: curl -LSs "https://raw.githubusercontent.com/backslashxx/KernelSU/refs/heads/master/kernel/setup.sh" | bash -s master
+
+      - name: 🧰 Restore Neutron Clang Cache
+        id: clang-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CLANG_DIR }}
+          key: clang-neutron-${{ hashFiles('.github/workflows/*.yml') }}
+
+      - name: ⬇️ Download Neutron Clang
+        if: steps.clang-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p "$CLANG_DIR" && cd "$CLANG_DIR"
+          curl -LSs "https://raw.githubusercontent.com/Neutron-Toolchains/antman/main/antman" > antman
+          chmod +x antman
+          ./antman -S
+
+      - name: 🛠️ Fix Resource Errors
+        working-directory: ${{ env.KERNEL_DIR }}
+        run: |
+          [ -f kernel/sched/sched.h ] && sed -i 's/cpu_rq(cpu)->cfs->cumulative_runnable_avg/cpu_rq(cpu)->cfs.cumulative_runnable_avg/g' kernel/sched/sched.h
+
+      - name: ⚙️ Generate Defconfig
+        working-directory: ${{ env.KERNEL_DIR }}
+        run: |
+          export PATH="$GITHUB_WORKSPACE/$CLANG_DIR/bin:$PATH"
+          make O=$OUT_DIR ARCH=${{ env.ARCH }} CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- ${{ env.DEFCONFIG }}
+
+      - name: 📝 Apply Tweak & Configs
+        working-directory: ${{ env.KERNEL_DIR }}
+        run: |
+          export PATH="$GITHUB_WORKSPACE/$CLANG_DIR/bin:$PATH"
+          
+          sed -i 's/CONFIG_DEFAULT_HOSTNAME=".*/CONFIG_DEFAULT_HOSTNAME="'"${{ inputs.DEFAULT_HOSTNAME }}"'"/' "$OUT_DIR/.config"
+          [ -n "${{ inputs.LOCALVERSION }}" ] && sed -i 's/CONFIG_LOCALVERSION=".*/CONFIG_LOCALVERSION="'"${{ inputs.LOCALVERSION }}"'"/' "$OUT_DIR/.config"
+
+          enable_config() { ./scripts/config --file "$OUT_DIR/.config" --enable "$1"; }
+          disable_config() { ./scripts/config --file "$OUT_DIR/.config" --disable "$1"; }
+          set_config() { ./scripts/config --file "$OUT_DIR/.config" --set-val "$1" "$2"; }
+
+          if [ "${{ inputs.APPLY_TWEAKS }}" == "true" ]; then
+            echo "Applying Universal & EAS Tweaks..."
+            disable_config CONFIG_DEBUG_INFO; disable_config CONFIG_KASAN; disable_config CONFIG_LOCKDEP; disable_config CONFIG_DEBUG_KERNEL; disable_config CONFIG_FTRACE; disable_config CONFIG_PROFILING; disable_config CONFIG_MSM_KGSL_DEBUG
+            enable_config CONFIG_JUMP_LABEL; set_config CONFIG_HZ 300; enable_config CONFIG_HZ_300; enable_config CONFIG_SCHED_AUTOGROUP; enable_config CONFIG_NO_HZ_IDLE
+            enable_config CONFIG_WQ_POWER_EFFICIENT_DEFAULT; enable_config CONFIG_PM_AUTOSLEEP
+            
+            enable_config CONFIG_ZRAM; enable_config CONFIG_ZRAM_LZ4_COMPRESS; disable_config CONFIG_ZRAM_LZO_COMPRESS
+            enable_config CONFIG_TCP_CONG_BBR; ./scripts/config --file "$OUT_DIR/.config" --set-str CONFIG_DEFAULT_TCP_CONG bbr
+            enable_config CONFIG_MQ_IOSCHED_KYBER; enable_config CONFIG_IOSCHED_BFQ
+
+            enable_config CONFIG_CPU_BOOST; enable_config CONFIG_DYNAMIC_STUNE_BOOST; enable_config CONFIG_SCHED_TUNE; enable_config CONFIG_SCHED_WALT; enable_config CONFIG_ENERGY_MODEL
+            enable_config CONFIG_CPU_FREQ_GOV_SCHEDUTIL; ./scripts/config --file "$OUT_DIR/.config" --set-str CONFIG_DEFAULT_GOVERNOR schedutil
+            disable_config CONFIG_CPU_FREQ_GOV_INTERACTIVE
+          fi
+
+          if [ "${{ inputs.INJECT_KSU }}" == "true" ]; then
+            enable_config CONFIG_KSU; enable_config CONFIG_KSU_TAMPER_SYSCALL_TABLE
+          fi
+
+          make O=$OUT_DIR ARCH=${{ env.ARCH }} CC=clang olddefconfig
+
+      - name: 🏗️ Build Kernel Image
+        working-directory: ${{ env.KERNEL_DIR }}
+        run: |
+          export PATH="/usr/lib/ccache:$GITHUB_WORKSPACE/$CLANG_DIR/bin:$PATH"
+          export KBUILD_BUILD_USER="${{ inputs.BUILD_USER }}"
+          export KBUILD_BUILD_HOST="${{ inputs.BUILD_HOST }}"
+          make -j$(nproc --all) O=$OUT_DIR ARCH=${{ env.ARCH }} CC="ccache clang" HOSTCC="ccache clang" HOSTCXX="ccache clang++" CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- CONFIG_LOCALVERSION_AUTO=n KCFLAGS="-Wno-address -Wno-implicit-function-declaration" 2>&1 | tee build.log
+
+      - name: 📄 Upload Build Logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-eas
+          path: ${{ env.KERNEL_DIR }}/build.log
+
+      - name: 🔍 Locate Image & Create Flashable Zip
+        id: img
+        working-directory: ${{ env.KERNEL_DIR }}
+        run: |
+          IMAGE=$(find "$PWD/$OUT_DIR/arch/arm64/boot" -name "Image.gz-dtb" -o -name "Image.gz" -o -name "Image" 2>/dev/null | head -n1)
+          cd "$GITHUB_WORKSPACE"
+          git clone --depth=1 https://github.com/ExXyrou/kernel_flashable AnyKernel3
+          cp "$IMAGE" AnyKernel3/
+          
+          FINAL_LOCALVER="${{ inputs.LOCALVERSION }}"
+          [ -z "$FINAL_LOCALVER" ] && FINAL_LOCALVER=$(grep "^CONFIG_LOCALVERSION=" "$GITHUB_WORKSPACE/$KERNEL_DIR/$OUT_DIR/.config" | cut -d'"' -f2) || FINAL_LOCALVER=$(echo "$FINAL_LOCALVER" | sed 's/^-//')
+          sed -i -E 's/^(kernel\.string=).*/\1'"$FINAL_LOCALVER"'/' AnyKernel3/anykernel.sh
+          
+          TIMESTAMP=$(date +'%Y%m%d')
+          ZIP_NAME="Kernel-EAS-lavender-4.4${{ inputs.LOCALVERSION }}-${TIMESTAMP}.zip"
+          cd AnyKernel3 && zip -r9 "$ZIP_NAME" * -x ".git/*"
+          echo "zip_path=$GITHUB_WORKSPACE/AnyKernel3/$ZIP_NAME" >> "$GITHUB_OUTPUT"; echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
+
+      - name: 🚀 Publish Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: "EAS-${{ github.run_number }}"
+          name: "Kernel EAS lavender 4.4${{ inputs.LOCALVERSION }}"
+          files: ${{ steps.img.outputs.zip_path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: ✅ Notify Telegram - Build Success
+        if: success()
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          RELEASE_URL="${{ github.server_url }}/${{ github.repository }}/releases/tag/EAS-${{ github.run_number }}"
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - ${{ env.BUILD_START_TIME }}))
+          DURATION_STR="$((DURATION / 60))m $((DURATION % 60))s"
+
+          MESSAGE=$(printf '✅ <b>KERNEL BUILD SUCCESSFUL [EAS]</b>\n━━━━━━━━━━━━━━━━━━━\n📱 <b>Device:</b> Lavender\n🏷️ <b>Kernel Name:</b> 4.4%s\n🦊 <b>KSU:</b> %s\n📦 <b>File:</b> <code>%s</code>\n⏱️ <b>Duration:</b> %s\n👤 <b>By:</b> %s' "${{ inputs.LOCALVERSION }}" "${{ inputs.INJECT_KSU }}" "${{ steps.img.outputs.zip_name }}" "$DURATION_STR" "@${{ github.actor }}")
+          
+          curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendMessage" --data-urlencode chat_id="${{ secrets.CHAT_ID }}" --data-urlencode parse_mode="HTML" --data-urlencode text="$MESSAGE" --data-urlencode reply_markup="{\"inline_keyboard\":[[{\"text\":\"📄 View Logs\",\"url\":\"$RUN_URL\"},{\"text\":\"⬇️ Download Release\",\"url\":\"$RELEASE_URL\"}]]}"
+
+      - name: ❌ Notify Telegram - Build Failed
+        if: failure()
+        run: |
+          RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - ${{ env.BUILD_START_TIME }}))
+          DURATION_STR="$((DURATION / 60))m $((DURATION % 60))s"
+
+          MESSAGE=$(printf '❌ <b>KERNEL BUILD FAILED [EAS]</b>\n━━━━━━━━━━━━━━━━━━━\n📱 <b>Device:</b> Lavender\n🏷️ <b>Kernel Name:</b> 4.4%s\n🦊 <b>KSU:</b> %s\n⏱️ <b>Duration:</b> %s\n👤 <b>By:</b> %s\n━━━━━━━━━━━━━━━━━━━\n💥 Something went wrong. Check logs for details.' "${{ inputs.LOCALVERSION }}" "${{ inputs.INJECT_KSU }}" "$DURATION_STR" "@${{ github.actor }}")
+          
+          curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendMessage" --data-urlencode chat_id="${{ secrets.CHAT_ID }}" --data-urlencode parse_mode="HTML" --data-urlencode text="$MESSAGE" --data-urlencode reply_markup="{\"inline_keyboard\":[[{\"text\":\"📄 View Logs\",\"url\":\"$RUN_URL\"}]]}"
