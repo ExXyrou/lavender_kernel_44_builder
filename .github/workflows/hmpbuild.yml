@@ -147,12 +147,11 @@ jobs:
             enable_config CONFIG_JUMP_LABEL; set_config CONFIG_HZ 300; enable_config CONFIG_HZ_300; enable_config CONFIG_SCHED_AUTOGROUP; enable_config CONFIG_NO_HZ_IDLE
             enable_config CONFIG_WQ_POWER_EFFICIENT_DEFAULT; enable_config CONFIG_PM_AUTOSLEEP
             
-            enable_config CONFIG_ZRAM; enable_config CONFIG_ZRAM_LZ4_COMPRESS; disable_config CONFIG_ZRAM_LZO_COMPRESS
+            enable_config CONFIG_ZRAM; enable_config CONFIG_ZRAM_LZ4_COMPRESS
             enable_config CONFIG_TCP_CONG_BBR; ./scripts/config --file "$OUT_DIR/.config" --set-str CONFIG_DEFAULT_TCP_CONG bbr
             enable_config CONFIG_MQ_IOSCHED_KYBER; enable_config CONFIG_IOSCHED_BFQ
 
             enable_config CONFIG_CPU_FREQ_GOV_INTERACTIVE; ./scripts/config --file "$OUT_DIR/.config" --set-str CONFIG_DEFAULT_GOVERNOR interactive
-            disable_config CONFIG_SCHED_TUNE; disable_config CONFIG_DYNAMIC_STUNE_BOOST; disable_config CONFIG_ENERGY_MODEL; disable_config CONFIG_SCHED_WALT; disable_config CONFIG_CPU_FREQ_GOV_SCHEDUTIL
           fi
 
           if [ "${{ inputs.INJECT_KSU }}" == "true" ]; then
