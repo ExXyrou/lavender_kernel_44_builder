@@ -55,11 +55,23 @@ jobs:
         run: echo "BUILD_START_TIME=$(date +%s)" >> $GITHUB_ENV
 
       - name: 📦 Install Build Dependencies
+        timeout-minutes: 10
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo apt-get update -yq
+          while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+            echo "Menunggu lock apt dilepas..."
+            sleep 5
+          done
+
+          for i in 1 2 3; do
+            sudo apt-get update -yq && break
+            echo "apt-get update gagal, percobaan $i, retry..."
+            sleep 10
+          done
+
           sudo apt-get install -yq --no-install-recommends \
+            -o Acquire::Retries=3 \
             bc bison libssl-dev libelf-dev build-essential python3 python3-pip curl git zip unzip wget ccache libncurses-dev rsync gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi
             
       - name: ⚡ Setup Compiler Cache
