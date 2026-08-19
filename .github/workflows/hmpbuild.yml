@@ -8,24 +8,21 @@ on:
         required: false
         type: string
       DEFAULT_HOSTNAME:
-        description: '💻 Kernel Hostname'
+        description: '💻 Kernel Hostname (e.g., xiaomi@redmi)'
         required: true
-        default: 'xiaomi@redmi'
         type: string
       BUILD_USER:
-        description: '👤 Build Username'
+        description: '👤 Build Username (e.g., xiaomi)'
         required: true
-        default: 'xiaomi'
         type: string
       BUILD_HOST:
-        description: '🖥️ Build Hostname'
+        description: '🖥️ Build Hostname (e.g., redmi)'
         required: true
-        default: 'redmi'
         type: string
       APPLY_TWEAKS:
         description: '🚀 Apply Performance & Gaming Tweaks'
         required: true
-        default: true
+        default: false
         type: boolean
       INJECT_KSU:
         description: '🦊 Inject xxKernelSU'
