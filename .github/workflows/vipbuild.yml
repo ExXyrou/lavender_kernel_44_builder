@@ -229,6 +229,7 @@ jobs:
             exit 1
           fi
 
+          # Set Hostname & Localversion
           sed -i 's/CONFIG_DEFAULT_HOSTNAME=".*/CONFIG_DEFAULT_HOSTNAME="'"${{ inputs.DEFAULT_HOSTNAME }}"'"/' "$OUT_DIR/.config"
           if ! grep -q "CONFIG_DEFAULT_HOSTNAME=" "$OUT_DIR/.config"; then echo "CONFIG_DEFAULT_HOSTNAME=\"${{ inputs.DEFAULT_HOSTNAME }}\"" >> "$OUT_DIR/.config"; fi
 
@@ -237,6 +238,7 @@ jobs:
             if ! grep -q "CONFIG_LOCALVERSION=" "$OUT_DIR/.config"; then echo "CONFIG_LOCALVERSION=\"${{ inputs.LOCALVERSION }}\"" >> "$OUT_DIR/.config"; fi
           fi
 
+          # Helper functions
           set_config() {
               local cfg="$1"
               local val="$2"
@@ -249,18 +251,12 @@ jobs:
               fi
           }
 
-          enable_config() {
-              ./scripts/config --file "$OUT_DIR/.config" --enable "$1"
-          }
-
-          disable_config() {
-              ./scripts/config --file "$OUT_DIR/.config" --disable "$1"
-          }
+          enable_config() { ./scripts/config --file "$OUT_DIR/.config" --enable "$1"; }
+          disable_config() { ./scripts/config --file "$OUT_DIR/.config" --disable "$1"; }
 
           if [ "${{ inputs.KERNEL_TWEAK }}" == "none" ]; then
             echo "ℹ️ Performance profile set to 'none'. Skipping optimizations."
           else
-            echo "🔥 Disabling debug/profiling overhead (safe, does not touch memory/network)..."
             disable_config CONFIG_DEBUG_INFO
             disable_config CONFIG_KASAN
             disable_config CONFIG_LOCKDEP
@@ -271,9 +267,11 @@ jobs:
             disable_config CONFIG_PM_DEBUG
             disable_config CONFIG_SCHED_DEBUG
             disable_config CONFIG_DEBUG_PREEMPT
+            disable_config CONFIG_MSM_KGSL_DEBUG
+            disable_config CONFIG_CORESIGHT
+            disable_config CONFIG_BUGON_DATA_CORRUPTION
+            disable_config CONFIG_SCHED_STACK_END_CHECK
             enable_config CONFIG_JUMP_LABEL
-
-            echo "⚖️ Applying daily smoothness tweaks (safe for sensors & camera)..."
             set_config CONFIG_HZ 300
             enable_config CONFIG_HZ_300
             disable_config CONFIG_HZ_1000
@@ -281,34 +279,42 @@ jobs:
             enable_config CONFIG_SCHED_AUTOGROUP
             enable_config CONFIG_NO_HZ_IDLE
             enable_config CONFIG_HIGH_RES_TIMERS
-
-            echo "🔋 Applying power efficiency tweaks (does not touch memory/network)..."
             enable_config CONFIG_WQ_POWER_EFFICIENT_DEFAULT
             enable_config CONFIG_PM_AUTOSLEEP
             enable_config CONFIG_PM_WAKELOCKS
-
-            echo "🎮 Applying gaming specific tweaks (stable, anti-bootloop, safe for camera & sensors)..."
+            enable_config CONFIG_ZRAM
+            enable_config CONFIG_CRYPTO_LZ4
+            enable_config CONFIG_ZRAM_LZ4_COMPRESS
+            disable_config CONFIG_ZRAM_LZO_COMPRESS
+            enable_config CONFIG_TCP_CONG_BBR
+            enable_config CONFIG_NET_SCH_FQ
+            ./scripts/config --file "$OUT_DIR/.config" --set-str CONFIG_DEFAULT_TCP_CONG bbr
+            enable_config CONFIG_BLOCK
+            enable_config CONFIG_BLK_DEV_INITRD
+            enable_config CONFIG_MQ_IOSCHED_DEADLINE
+            enable_config CONFIG_MQ_IOSCHED_KYBER
+            enable_config CONFIG_IOSCHED_BFQ
+            enable_config CONFIG_BFQ_GROUP_IOSCHED
             enable_config CONFIG_CPU_BOOST
-            enable_config CONFIG_DYNAMIC_STUNE_BOOST
-            enable_config CONFIG_SCHED_TUNE
-            enable_config CONFIG_CGROUP_SCHEDTUNE
+            enable_config CONFIG_CPU_FREQ_GOV_PERFORMANCE
 
             if [[ "${{ inputs.KERNEL_TWEAK }}" == "eas" ]]; then
-              echo "⚡ EAS Scheduler - schedutil governor selected (stable for gaming & daily use)..."
+              echo "⚡ [EAS] Applying EAS Specific Scheduler & Governor tweaks..."
+              enable_config CONFIG_DYNAMIC_STUNE_BOOST
+              enable_config CONFIG_SCHED_TUNE
+              enable_config CONFIG_CGROUP_SCHEDTUNE
               enable_config CONFIG_SCHED_WALT
               enable_config CONFIG_ENERGY_MODEL
               enable_config CONFIG_CPU_FREQ_GOV_SCHEDUTIL
               enable_config CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL
-              set_config CONFIG_DEFAULT_GOVERNOR schedutil
-              enable_config CONFIG_CPU_FREQ_GOV_PERFORMANCE
+              ./scripts/config --file "$OUT_DIR/.config" --set-str CONFIG_DEFAULT_GOVERNOR schedutil
             elif [[ "${{ inputs.KERNEL_TWEAK }}" == "hmp" ]]; then
-              echo "⚡ HMP Scheduler - interactive governor selected (stable for gaming & daily use)..."
-              enable_config CONFIG_ENERGY_MODEL
+              echo "⚡ [HMP] Applying HMP Specific Scheduler & Governor tweaks..."
               enable_config CONFIG_CPU_FREQ_GOV_INTERACTIVE
               enable_config CONFIG_CPU_FREQ_DEFAULT_GOV_INTERACTIVE
-              set_config CONFIG_DEFAULT_GOVERNOR interactive
-              enable_config CONFIG_CPU_FREQ_GOV_PERFORMANCE
+              ./scripts/config --file "$OUT_DIR/.config" --set-str CONFIG_DEFAULT_GOVERNOR interactive
             fi
+            
           fi
 
           if [ "${{ inputs.INJECT_KSU }}" == "xxKSU" ]; then
@@ -317,11 +323,7 @@ jobs:
             enable_config CONFIG_KSU_TAMPER_SYSCALL_TABLE
           fi
 
-          make \
-            O=$OUT_DIR \
-            ARCH=${{ env.ARCH }} \
-            CC=clang \
-            olddefconfig
+          make O=$OUT_DIR ARCH=${{ env.ARCH }} CC=clang olddefconfig
 
       - name: 🏗️ Build Kernel Image
         working-directory: ${{ env.KERNEL_DIR }}
