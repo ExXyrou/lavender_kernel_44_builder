@@ -1,4 +1,4 @@
-name: 🛠️ VIP Lavender Kernel Builder
+name: 🛠️ Lavender Kernel Builder
 
 on:
   workflow_dispatch:
@@ -11,7 +11,7 @@ on:
         options:
           - eas
           - hmp
-          
+
       LOCALVERSION:
         description: '🏷️ Custom Kernel Name (e.g., -MyKernel-v1.0)'
         required: false
@@ -258,7 +258,7 @@ jobs:
           if [ "${{ inputs.KERNEL_TWEAK }}" == "none" ]; then
             echo "ℹ️ Performance profile set to 'none'. Skipping optimizations."
           else
-            echo "🔥 Applying Safe Base Optimizations & Disabling Overhead..."
+            echo "🔥 Disabling debug/profiling overhead (safe, does not touch memory/network)..."
             disable_config CONFIG_DEBUG_INFO
             disable_config CONFIG_KASAN
             disable_config CONFIG_LOCKDEP
@@ -267,9 +267,11 @@ jobs:
             disable_config CONFIG_PROFILING
             disable_config CONFIG_SLUB_DEBUG
             disable_config CONFIG_PM_DEBUG
-            disable_config CONFIG_DEBUG_FS
+            disable_config CONFIG_SCHED_DEBUG
+            disable_config CONFIG_DEBUG_PREEMPT
             enable_config CONFIG_JUMP_LABEL
-            echo "⚖️ Daily-use Smoothness Micro-Tweaks (Safe for sensors/cameras)..."
+
+            echo "⚖️ Applying daily smoothness tweaks (safe for sensors & camera)..."
             set_config CONFIG_HZ 300
             enable_config CONFIG_HZ_300
             disable_config CONFIG_HZ_1000
@@ -277,26 +279,33 @@ jobs:
             enable_config CONFIG_SCHED_AUTOGROUP
             enable_config CONFIG_NO_HZ_IDLE
             enable_config CONFIG_HIGH_RES_TIMERS
-            echo "🔋 Enabling Safe Power Efficiency features..."
+
+            echo "🔋 Applying power efficiency tweaks (does not touch memory/network)..."
             enable_config CONFIG_WQ_POWER_EFFICIENT_DEFAULT
             enable_config CONFIG_PM_AUTOSLEEP
             enable_config CONFIG_PM_WAKELOCKS
 
+            echo "🎮 Applying gaming specific tweaks (stable, anti-bootloop, safe for camera & sensors)..."
+            enable_config CONFIG_CPU_BOOST
+            enable_config CONFIG_DYNAMIC_STUNE_BOOST
+            enable_config CONFIG_SCHED_TUNE
+            enable_config CONFIG_CGROUP_SCHEDTUNE
+
             if [[ "${{ inputs.KERNEL_TWEAK }}" == "eas" ]]; then
-              echo "⚡ Applying Safe EAS Scheduler Optimizations..."
+              echo "⚡ EAS Scheduler - schedutil governor selected (stable for gaming & daily use)..."
               enable_config CONFIG_SCHED_WALT
               enable_config CONFIG_ENERGY_MODEL
               enable_config CONFIG_CPU_FREQ_GOV_SCHEDUTIL
               enable_config CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL
               set_config CONFIG_DEFAULT_GOVERNOR schedutil
-              enable_config CONFIG_SCHED_TUNE
-              enable_config CONFIG_CGROUP_SCHEDTUNE
+              enable_config CONFIG_CPU_FREQ_GOV_PERFORMANCE
             elif [[ "${{ inputs.KERNEL_TWEAK }}" == "hmp" ]]; then
-              echo "⚡ Applying Safe HMP Scheduler Optimizations..."
+              echo "⚡ HMP Scheduler - interactive governor selected (stable for gaming & daily use)..."
               enable_config CONFIG_ENERGY_MODEL
               enable_config CONFIG_CPU_FREQ_GOV_INTERACTIVE
               enable_config CONFIG_CPU_FREQ_DEFAULT_GOV_INTERACTIVE
               set_config CONFIG_DEFAULT_GOVERNOR interactive
+              enable_config CONFIG_CPU_FREQ_GOV_PERFORMANCE
             fi
           fi
 
