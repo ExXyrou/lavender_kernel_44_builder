@@ -73,15 +73,17 @@ jobs:
         run: echo "BUILD_START_TIME=$(date +%s)" >> $GITHUB_ENV
 
       - name: 📦 Install Build Dependencies
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
+          sudo apt-get update -yq
+          sudo apt-get install -yq --no-install-recommends \
             bc bison libssl-dev libelf-dev \
             build-essential python3 python3-pip curl git zip unzip wget ccache \
             libncurses-dev rsync \
             gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu \
             gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi
-
+            
       - name: ⚡ Setup Compiler Cache
         run: |
           ccache --max-size=2G
