@@ -143,7 +143,7 @@ jobs:
 
           if [ "${{ inputs.APPLY_TWEAKS }}" == "true" ]; then
             echo "Applying Universal & HMP Tweaks..."
-            disable_config CONFIG_DEBUG_INFO; disable_config CONFIG_KASAN; disable_config CONFIG_LOCKDEP; disable_config CONFIG_DEBUG_KERNEL; disable_config CONFIG_FTRACE; disable_config CONFIG_PROFILING; disable_config CONFIG_MSM_KGSL_DEBUG
+            disable_config CONFIG_KASAN; disable_config CONFIG_LOCKDEP; disable_config CONFIG_MSM_KGSL_DEBUG
             enable_config CONFIG_JUMP_LABEL; set_config CONFIG_HZ 300; enable_config CONFIG_HZ_300; enable_config CONFIG_SCHED_AUTOGROUP; enable_config CONFIG_NO_HZ_IDLE
             enable_config CONFIG_WQ_POWER_EFFICIENT_DEFAULT; enable_config CONFIG_PM_AUTOSLEEP
             
