@@ -89,7 +89,7 @@ jobs:
 
       - name: 📢 Notify Telegram - Build Started
         run: |
-          MESSAGE=$(printf '🛠️ <b>START BUILD</b>\n━━━━━━━━━━━━━━━━━━━\n📱 <b>Device:</b> Lavender\n🏷️ <b>Kernel name:</b> 4.4%s\n🦊 <b>Built-in KSU:</b> %s\n🛠️ <b>Clang Version:</b> ZyC Clang 15.0.7' "${{ inputs.LOCALVERSION }}" "${{ inputs.INJECT_KSU }}")
+          MESSAGE=$(printf '🛠️ <b>START BUILD</b>\n\n📱 <b>Device:</b> Lavender\n🏷️ <b>Kernel name:</b> 4.4%s\n🦊 <b>Built-in KSU:</b> %s\n🛠️ <b>Clang Version:</b> ZyC Clang 15.0.7' "${{ inputs.LOCALVERSION }}" "${{ inputs.INJECT_KSU }}")
           curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendMessage" --data-urlencode chat_id="${{ secrets.CHAT_ID }}" --data-urlencode parse_mode="HTML" --data-urlencode text="$MESSAGE"
 
       - name: 📥 Clone Kernel Source
@@ -126,8 +126,15 @@ jobs:
           curl -LSs "$CLANG_URL" -o zyc_clang.tar.gz
           
           echo "Extracting Clang..."
-          tar -zxf zyc_clang.tar.gz -C "$CLANG_DIR" --strip-components=1
+          tar -zxf zyc_clang.tar.gz -C "$CLANG_DIR"
           rm -f zyc_clang.tar.gz
+          
+          if [ ! -d "$CLANG_DIR/bin" ]; then
+            CLANG_SUBDIR=$(find "$CLANG_DIR" -mindepth 1 -maxdepth 1 -type d | head -n 1)
+            if [ -n "$CLANG_SUBDIR" ]; then
+              mv "$CLANG_SUBDIR"/* "$CLANG_DIR/"
+            fi
+          fi
           
           echo "CLANG_VERSION=ZyC Clang 15.0.7" >> $GITHUB_ENV
 
@@ -230,7 +237,7 @@ jobs:
           DURATION=$((END_TIME - ${{ env.BUILD_START_TIME }}))
           DURATION_STR="$((DURATION / 60))m $((DURATION % 60))s"
 
-          MESSAGE=$(printf '✅ <b>BUILD SUCCESS</b>\n━━━━━━━━━━━━━━━━━━━\n📱 <b>Device:</b> Lavender\n🏷️ <b>Kernel name:</b> 4.4%s\n🦊 <b>Built-in KSU:</b> %s\n🛠️ <b>Clang Version:</b> ZyC Clang 15.0.7\n⏱️ <b>Time Elapsed:</b> %s' "${{ inputs.LOCALVERSION }}" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
+          MESSAGE=$(printf '✅ <b>BUILD SUCCESS</b>\n\n📱 <b>Device:</b> Lavender\n🏷️ <b>Kernel name:</b> 4.4%s\n🦊 <b>Built-in KSU:</b> %s\n🛠️ <b>Clang Version:</b> ZyC Clang 15.0.7\n⏱️ <b>Time Elapsed:</b> %s' "${{ inputs.LOCALVERSION }}" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
           
           curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendDocument" \
             -F chat_id="${{ secrets.CHAT_ID }}" \
@@ -245,7 +252,7 @@ jobs:
           DURATION=$((END_TIME - ${{ env.BUILD_START_TIME }}))
           DURATION_STR="$((DURATION / 60))m $((DURATION % 60))s"
 
-          MESSAGE=$(printf '❌ <b>BUILD FAILED</b>\n━━━━━━━━━━━━━━━━━━━\n📱 <b>Device:</b> Lavender\n🏷️ <b>Kernel name:</b> 4.4%s\n🦊 <b>Built-in KSU:</b> %s\n🛠️ <b>Clang Version:</b> ZyC Clang 15.0.7\n⏱️ <b>Time Elapsed:</b> %s\n━━━━━━━━━━━━━━━━━━━\n💥 <i>Please check the build.log file above.</i>' "${{ inputs.LOCALVERSION }}" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
+          MESSAGE=$(printf '❌ <b>BUILD FAILED</b>\n\n📱 <b>Device:</b> Lavender\n🏷️ <b>Kernel name:</b> 4.4%s\n🦊 <b>Built-in KSU:</b> %s\n🛠️ <b>Clang Version:</b> ZyC Clang 15.0.7\n⏱️ <b>Time Elapsed:</b> %s\n\n💥 <i>Please check the build.log file above.</i>' "${{ inputs.LOCALVERSION }}" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
           
           curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendDocument" \
             -F chat_id="${{ secrets.CHAT_ID }}" \
