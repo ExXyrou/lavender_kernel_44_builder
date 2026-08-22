@@ -25,7 +25,7 @@ on:
         default: false
         type: boolean
       INJECT_KSU:
-        description: '🦊 Inject xxKernelSU'
+        description: '🦊 Inject KernelSU'
         required: true
         default: false
         type: boolean
@@ -60,20 +60,20 @@ jobs:
           DEBIAN_FRONTEND: noninteractive
         run: |
           while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
-            echo "Menunggu lock apt dilepas..."
+            echo "Waiting for apt lock to be released..."
             sleep 5
           done
 
           for i in 1 2 3; do
             sudo apt-get update -yq && break
-            echo "apt-get update gagal, percobaan $i, retry..."
+            echo "apt-get update failed, attempt $i, retrying..."
             sleep 10
           done
 
           sudo apt-get install -yq --no-install-recommends \
             -o Acquire::Retries=3 \
             bc bison libssl-dev libelf-dev build-essential python3 python3-pip curl git zip unzip wget ccache libncurses-dev rsync gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi
-            
+          
       - name: ⚡ Setup Compiler Cache
         run: |
           ccache --max-size=2G
@@ -103,20 +103,25 @@ jobs:
         working-directory: ${{ env.KERNEL_DIR }}
         run: curl -LSs "https://raw.githubusercontent.com/backslashxx/KernelSU/refs/heads/master/kernel/setup.sh" | bash -s master
 
-      - name: 🧰 Restore Neutron Clang Cache
+      - name: 🧰 Restore ZyC Clang Cache
         id: clang-cache
         uses: actions/cache@v4
         with:
           path: ${{ env.CLANG_DIR }}
-          key: clang-neutron-${{ hashFiles('.github/workflows/*.yml') }}
+          key: clang-zyc-15.0.7-${{ hashFiles('.github/workflows/*.yml') }}
 
-      - name: ⬇️ Download Neutron Clang
+      - name: ⬇️ Download ZyC Clang 15.0.7
         if: steps.clang-cache.outputs.cache-hit != 'true'
         run: |
           mkdir -p "$CLANG_DIR" && cd "$CLANG_DIR"
-          curl -LSs "https://raw.githubusercontent.com/Neutron-Toolchains/antman/main/antman" > antman
-          chmod +x antman
-          ./antman -S
+          echo "Downloading ZyC Clang 15.0.7..."
+          CLANG_URL=$(curl -s https://api.github.com/repos/ZyCromerZ/Clang/releases | grep "browser_download_url.*15.0.7.*release.tar.gz" | head -n 1 | cut -d '"' -f 4)
+          if [ -z "$CLANG_URL" ]; then
+            CLANG_URL="https://github.com/ZyCromerZ/Clang/releases/download/15.0.7-20230316-release/Clang-15.0.7.tar.gz"
+          fi
+          wget -q "$CLANG_URL" -O clang.tar.gz
+          tar -xf clang.tar.gz
+          rm -f clang.tar.gz
 
       - name: 🛠️ Fix Resource Errors
         working-directory: ${{ env.KERNEL_DIR }}
@@ -129,7 +134,7 @@ jobs:
           export PATH="$GITHUB_WORKSPACE/$CLANG_DIR/bin:$PATH"
           make O=$OUT_DIR ARCH=${{ env.ARCH }} CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- ${{ env.DEFCONFIG }}
 
-      - name: 📝 Apply Tweak & Configs
+      - name: 📝 Apply Tweaks & Configs
         working-directory: ${{ env.KERNEL_DIR }}
         run: |
           export PATH="$GITHUB_WORKSPACE/$CLANG_DIR/bin:$PATH"
