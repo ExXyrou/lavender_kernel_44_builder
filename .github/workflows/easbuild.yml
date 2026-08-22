@@ -61,11 +61,19 @@ jobs:
       - name: ⬇️ Download ZyC Clang 15.0.7
         run: |
           mkdir -p "$CLANG_DIR" && cd "$CLANG_DIR"
-          echo "Downloading ZyC Clang 15.0.7..."
+          echo "Fetching latest ZyC Clang 15.0.7 release URL..."
+
+          CLANG_URL=$(curl -s https://api.github.com/repos/ZyCromerZ/Clang/releases | grep -o "https://github.com/ZyCromerZ/Clang/releases/download/.*/Clang-15.0.7-.*\.tar\.gz" | head -n 1)
           
-          CLANG_URL="https://github.com/ZyCromerZ/Clang/releases/download/15.0.7-20230316-release/Clang-15.0.7.tar.gz"
+          if [ -z "$CLANG_URL" ]; then
+            echo "Error: Failed to fetch Clang download URL!"
+            exit 1
+          fi
           
+          echo "Downloading from: $CLANG_URL"
           curl -LSs "$CLANG_URL" -o zyc_clang.tar.gz
+          
+          echo "Extracting Clang..."
           tar -xf zyc_clang.tar.gz || tar -xzvf zyc_clang.tar.gz
           rm -f zyc_clang.tar.gz
           
