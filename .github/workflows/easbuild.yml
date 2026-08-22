@@ -59,11 +59,13 @@ jobs:
           sudo apt-get update && sudo apt-get install -y bc bison libssl-dev libelf-dev build-essential python3 python3-pip curl git zip unzip wget ccache libncurses-dev rsync gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi
 
       - name: ⬇️ Download ZyC Clang 15.0.7
+        if: steps.clang-cache.outputs.cache-hit != 'true'
         run: |
           mkdir -p "$CLANG_DIR" && cd "$CLANG_DIR"
-          wget -q https://github.com/ZyCromerZ/Clang/releases/download/15.0.7-20230316-release/Clang-15.0.7.tar.gz
-          tar -xf Clang-15.0.7.tar.gz
-          echo "CLANG_VERSION=ZyC-Clang-15.0.7" >> $GITHUB_ENV
+          echo "Downloading ZyC Clang 15.0.7..."
+          curl -LSs "https://github.com/ZyCromerZ/Clang/releases/download/15.0.7-20230316-release/Clang-15.0.7.tar.gz" -o zyc_clang.tar.gz
+          tar -xf zyc_clang.tar.gz
+          rm -f zyc_clang.tar.gz
 
       - name: 📥 Clone Kernel Source
         run: |
