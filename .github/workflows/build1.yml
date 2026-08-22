@@ -73,7 +73,7 @@ jobs:
           sudo apt-get install -yq --no-install-recommends \
             -o Acquire::Retries=3 \
             bc bison libssl-dev libelf-dev build-essential python3 python3-pip curl git zip unzip wget ccache libncurses-dev rsync gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi
-            
+
       - name: ⚡ Setup Compiler Cache
         run: |
           ccache --max-size=2G
@@ -107,7 +107,8 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ${{ env.CLANG_DIR }}
-          key: clang-zyc-${{ hashFiles('.github/workflows/*.yml') }}
+          # Kunci diubah menjadi v2 untuk memaksa unduhan baru yang bersih
+          key: clang-zyc-v2-${{ hashFiles('.github/workflows/*.yml') }}
 
       - name: ⬇️ Download ZyC Clang 15.0.7
         if: steps.clang-cache.outputs.cache-hit != 'true'
@@ -139,8 +140,14 @@ jobs:
       - name: ⚙️ Generate Defconfig
         working-directory: ${{ env.KERNEL_DIR }}
         run: |
+          # Menambahkan Clang bin ke urutan PATH pertama
           export PATH="$GITHUB_WORKSPACE/$CLANG_DIR/bin:$PATH"
-          make O=$OUT_DIR ARCH=${{ env.ARCH }} CC="clang" CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- ${{ env.DEFCONFIG }}
+          
+          make O=$OUT_DIR ARCH=${{ env.ARCH }} \
+            CC="$GITHUB_WORKSPACE/$CLANG_DIR/bin/clang" \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- ${{ env.DEFCONFIG }}
 
       - name: 📝 Apply Tweak & Configs
         working-directory: ${{ env.KERNEL_DIR }}
@@ -172,7 +179,11 @@ jobs:
             enable_config CONFIG_KSU; enable_config CONFIG_KSU_TAMPER_SYSCALL_TABLE
           fi
 
-          make O=$OUT_DIR ARCH=${{ env.ARCH }} CC="clang" CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- olddefconfig
+          make O=$OUT_DIR ARCH=${{ env.ARCH }} \
+            CC="$GITHUB_WORKSPACE/$CLANG_DIR/bin/clang" \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- olddefconfig
 
       - name: 🏗️ Build Kernel Image
         working-directory: ${{ env.KERNEL_DIR }}
@@ -181,10 +192,16 @@ jobs:
           export KBUILD_BUILD_USER="${{ inputs.BUILD_USER }}"
           export KBUILD_BUILD_HOST="${{ inputs.BUILD_HOST }}"
           
+          # Optimasi: Menggunakan LD=ld.lld dan LLVM tools (Jika kompatibel dengan kernel 4.4 kamu, ini akan mempercepat kompilasi)
           make -j$(nproc --all) O=$OUT_DIR ARCH=${{ env.ARCH }} \
-            CC="ccache clang" \
-            HOSTCC="ccache clang" \
-            HOSTCXX="ccache clang++" \
+            CC="ccache $GITHUB_WORKSPACE/$CLANG_DIR/bin/clang" \
+            HOSTCC="ccache $GITHUB_WORKSPACE/$CLANG_DIR/bin/clang" \
+            HOSTCXX="ccache $GITHUB_WORKSPACE/$CLANG_DIR/bin/clang++" \
+            AR="$GITHUB_WORKSPACE/$CLANG_DIR/bin/llvm-ar" \
+            NM="$GITHUB_WORKSPACE/$CLANG_DIR/bin/llvm-nm" \
+            OBJCOPY="$GITHUB_WORKSPACE/$CLANG_DIR/bin/llvm-objcopy" \
+            OBJDUMP="$GITHUB_WORKSPACE/$CLANG_DIR/bin/llvm-objdump" \
+            STRIP="$GITHUB_WORKSPACE/$CLANG_DIR/bin/llvm-strip" \
             CLANG_TRIPLE=aarch64-linux-gnu- \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
