@@ -25,7 +25,7 @@ on:
         default: false
         type: boolean
       INJECT_KSU:
-        description: '🦊 Inject xxKernelSU'
+        description: '🦊 Inject KernelSU'
         required: true
         default: false
         type: boolean
@@ -60,13 +60,13 @@ jobs:
           DEBIAN_FRONTEND: noninteractive
         run: |
           while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
-            echo "Menunggu lock apt dilepas..."
+            echo "Waiting for apt lock to be released..."
             sleep 5
           done
 
           for i in 1 2 3; do
             sudo apt-get update -yq && break
-            echo "apt-get update gagal, percobaan $i, retry..."
+            echo "apt-get update failed, attempt $i, retrying..."
             sleep 10
           done
 
@@ -103,19 +103,25 @@ jobs:
         working-directory: ${{ env.KERNEL_DIR }}
         run: curl -LSs "https://raw.githubusercontent.com/backslashxx/KernelSU/refs/heads/master/kernel/setup.sh" | bash -s master
 
-      - name: 🧰 Restore AOSP Clang Cache
+      - name: 🧰 Restore ZyC Clang 15.0.7 Cache
         id: clang-cache
         uses: actions/cache@v4
         with:
           path: ${{ env.CLANG_DIR }}
-          key: clang-aosp-${{ hashFiles('.github/workflows/*.yml') }}
+          key: clang-zyc-15.0.7-${{ hashFiles('.github/workflows/*.yml') }}
 
-      - name: ⬇️ Download AOSP Clang
+      - name: ⬇️ Download ZyC Clang 15.0.7
         if: steps.clang-cache.outputs.cache-hit != 'true'
         run: |
           mkdir -p "$CLANG_DIR" && cd "$CLANG_DIR"
-          curl -LSs "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/android11-release/clang-r383902.tar.gz" -o aosp_clang.archive
-          tar -xf aosp_clang.archive || unzip aosp_clang.archive && rm -f aosp_clang.archive
+          echo "Downloading ZyC Clang 15.0.7..."
+          CLANG_URL=$(curl -s https://api.github.com/repos/ZyCromerZ/Clang/releases | grep "browser_download_url.*15.0.7.*release.tar.gz" | head -n 1 | cut -d '"' -f 4)
+          if [ -z "$CLANG_URL" ]; then
+            CLANG_URL="https://github.com/ZyCromerZ/Clang/releases/download/15.0.7-20230316-release/Clang-15.0.7.tar.gz"
+          fi
+          wget -q "$CLANG_URL" -O clang.tar.gz
+          tar -xf clang.tar.gz
+          rm -f clang.tar.gz
 
       - name: 🛠️ Fix Resource Errors
         working-directory: ${{ env.KERNEL_DIR }}
@@ -129,7 +135,7 @@ jobs:
           export PATH="$GITHUB_WORKSPACE/$CLANG_DIR/bin:$PATH"
           make O=$OUT_DIR ARCH=${{ env.ARCH }} CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- ${{ env.DEFCONFIG }}
 
-      - name: 📝 Apply Tweak & Configs
+      - name: 📝 Apply Tweaks & Configs
         working-directory: ${{ env.KERNEL_DIR }}
         run: |
           export PATH="$GITHUB_WORKSPACE/$CLANG_DIR/bin:$PATH"
@@ -191,29 +197,30 @@ jobs:
           TIMESTAMP=$(date +'%Y%m%d')
           ZIP_NAME="Kernel-HMP-lavender-4.4${{ inputs.LOCALVERSION }}-${TIMESTAMP}.zip"
           cd AnyKernel3 && zip -r9 "$ZIP_NAME" * -x ".git/*"
-          echo "zip_path=$GITHUB_WORKSPACE/AnyKernel3/$ZIP_NAME" >> "$GITHUB_OUTPUT"; echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
+          echo "zip_path=$GITHUB_WORKSPACE/AnyKernel3/$ZIP_NAME" >> "$GITHUB_OUTPUT"
+          echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
 
-      - name: 🚀 Publish Release
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: "HMP-${{ github.run_number }}"
-          name: "Kernel HMP lavender 4.4${{ inputs.LOCALVERSION }}"
-          files: ${{ steps.img.outputs.zip_path }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: ✅ Notify Telegram - Build Success
+      - name: ✅ Notify Telegram - Build Success & Send File
         if: success()
         run: |
           RUN_URL="${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
-          RELEASE_URL="${{ github.server_url }}/${{ github.repository }}/releases/tag/HMP-${{ github.run_number }}"
           END_TIME=$(date +%s)
           DURATION=$((END_TIME - ${{ env.BUILD_START_TIME }}))
           DURATION_STR="$((DURATION / 60))m $((DURATION % 60))s"
 
-          MESSAGE=$(printf '✅ <b>KERNEL BUILD SUCCESSFUL [HMP]</b>\n━━━━━━━━━━━━━━━━━━━\n📱 <b>Device:</b> Lavender\n🏷️ <b>Kernel Name:</b> 4.4%s\n🦊 <b>KSU:</b> %s\n📦 <b>File:</b> <code>%s</code>\n⏱️ <b>Duration:</b> %s\n👤 <b>By:</b> %s' "${{ inputs.LOCALVERSION }}" "${{ inputs.INJECT_KSU }}" "${{ steps.img.outputs.zip_name }}" "$DURATION_STR" "@${{ github.actor }}")
+          MESSAGE=$(printf '✅ <b>KERNEL BUILD SUCCESSFUL [HMP]</b>\n━━━━━━━━━━━━━━━━━━━\n📱 <b>Device:</b> Lavender\n🏷️ <b>Kernel Name:</b> 4.4%s\n⏱️ <b>Duration:</b> %s\n🛠️ <b>Clang:</b> ZyC Clang 15.0.7' "${{ inputs.LOCALVERSION }}" "$DURATION_STR")
           
-          curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendMessage" --data-urlencode chat_id="${{ secrets.CHAT_ID }}" --data-urlencode parse_mode="HTML" --data-urlencode text="$MESSAGE" --data-urlencode reply_markup="{\"inline_keyboard\":[[{\"text\":\"📄 View Logs\",\"url\":\"$RUN_URL\"},{\"text\":\"⬇️ Download Release\",\"url\":\"$RELEASE_URL\"}]]}"
+          curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendMessage" \
+            -d chat_id="${{ secrets.CHAT_ID }}" \
+            -d parse_mode="HTML" \
+            -d text="$MESSAGE" \
+            -d reply_markup="{\"inline_keyboard\":[[{\"text\":\"📄 View Logs\",\"url\":\"$RUN_URL\"}]]}"
+
+          curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendDocument" \
+            -F chat_id="${{ secrets.CHAT_ID }}" \
+            -F document=@"${{ steps.img.outputs.zip_path }}" \
+            -F caption="📦 <b>File:</b> <code>${{ steps.img.outputs.zip_name }}</code>" \
+            -F parse_mode="HTML"
 
       - name: ❌ Notify Telegram - Build Failed
         if: failure()
@@ -223,6 +230,10 @@ jobs:
           DURATION=$((END_TIME - ${{ env.BUILD_START_TIME }}))
           DURATION_STR="$((DURATION / 60))m $((DURATION % 60))s"
 
-          MESSAGE=$(printf '❌ <b>KERNEL BUILD FAILED [HMP]</b>\n━━━━━━━━━━━━━━━━━━━\n📱 <b>Device:</b> Lavender\n🏷️ <b>Kernel Name:</b> 4.4%s\n🦊 <b>KSU:</b> %s\n⏱️ <b>Duration:</b> %s\n👤 <b>By:</b> %s\n━━━━━━━━━━━━━━━━━━━\n💥 Something went wrong. Check logs for details.' "${{ inputs.LOCALVERSION }}" "${{ inputs.INJECT_KSU }}" "$DURATION_STR" "@${{ github.actor }}")
+          MESSAGE=$(printf '❌ <b>KERNEL BUILD FAILED [HMP]</b>\n━━━━━━━━━━━━━━━━━━━\n📱 <b>Device:</b> Lavender\n🏷️ <b>Kernel Name:</b> 4.4%s\n⏱️ <b>Duration:</b> %s\n🛠️ <b>Clang:</b> ZyC Clang 15.0.7' "${{ inputs.LOCALVERSION }}" "$DURATION_STR")
           
-          curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendMessage" --data-urlencode chat_id="${{ secrets.CHAT_ID }}" --data-urlencode parse_mode="HTML" --data-urlencode text="$MESSAGE" --data-urlencode reply_markup="{\"inline_keyboard\":[[{\"text\":\"📄 View Logs\",\"url\":\"$RUN_URL\"}]]}"
+          curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendMessage" \
+            -d chat_id="${{ secrets.CHAT_ID }}" \
+            -d parse_mode="HTML" \
+            -d text="$MESSAGE" \
+            -d reply_markup="{\"inline_keyboard\":[[{\"text\":\"📄 View Logs\",\"url\":\"$RUN_URL\"}]]}"
