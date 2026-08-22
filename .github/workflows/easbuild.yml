@@ -25,7 +25,7 @@ on:
         default: false
         type: boolean
       INJECT_KSU:
-        description: '🦊 Inject KernelSU'
+        description: '🦊 Inject xxKernelSU'
         required: true
         default: false
         type: boolean
@@ -54,13 +54,65 @@ jobs:
       - name: ⏱️ Record Build Start Time
         run: echo "BUILD_START_TIME=$(date +%s)" >> $GITHUB_ENV
 
-      - name: 📦 Install Dependencies
+      - name: 📦 Install Build Dependencies
+        timeout-minutes: 10
+        env:
+          DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo apt-get update && sudo apt-get install -y bc bison libssl-dev libelf-dev build-essential python3 python3-pip curl git zip unzip wget ccache libncurses-dev rsync gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi
+          while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
+            echo "Menunggu lock apt dilepas..."
+            sleep 5
+          done
+
+          for i in 1 2 3; do
+            sudo apt-get update -yq && break
+            echo "apt-get update gagal, percobaan $i, retry..."
+            sleep 10
+          done
+
+          sudo apt-get install -yq --no-install-recommends \
+            -o Acquire::Retries=3 \
+            bc bison libssl-dev libelf-dev build-essential python3 python3-pip curl git zip unzip wget ccache libncurses-dev rsync gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi
+            
+      - name: ⚡ Setup Compiler Cache
+        run: |
+          ccache --max-size=2G
+          echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
+
+      - name: 💾 Restore Compiler Cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.ccache
+          key: ccache-eas-${{ env.DEFCONFIG }}-${{ github.run_id }}
+          restore-keys: |
+            ccache-eas-${{ env.DEFCONFIG }}-
+
+      - name: 📢 Notify Telegram - Build Started
+        run: |
+          MESSAGE=$(printf '🛠️ <b>START BUILD</b>\n━━━━━━━━━━━━━━━━━━━\n📱 <b>Device:</b> Lavender\n🏷️ <b>Kernel name:</b> 4.4%s\n🦊 <b>Built-in KSU:</b> %s\n🛠️ <b>Nama Clang:</b> ZyC Clang 15.0.7' "${{ inputs.LOCALVERSION }}" "${{ inputs.INJECT_KSU }}")
+          curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendMessage" --data-urlencode chat_id="${{ secrets.CHAT_ID }}" --data-urlencode parse_mode="HTML" --data-urlencode text="$MESSAGE"
+
+      - name: 📥 Clone Kernel Source
+        run: |
+          rm -rf "${{ env.KERNEL_DIR }}"
+          git clone --depth=1 -b "${{ env.KERNEL_BRANCH }}" "${{ env.KERNEL_URL }}" "${{ env.KERNEL_DIR }}"
+
+      - name: 🦊 Inject KernelSU
+        if: ${{ inputs.INJECT_KSU == true }}
+        working-directory: ${{ env.KERNEL_DIR }}
+        run: curl -LSs "https://raw.githubusercontent.com/backslashxx/KernelSU/refs/heads/master/kernel/setup.sh" | bash -s master
+
+      - name: 🧰 Restore ZyC Clang Cache
+        id: clang-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.CLANG_DIR }}
+          key: clang-zyc-${{ hashFiles('.github/workflows/*.yml') }}
 
       - name: ⬇️ Download ZyC Clang 15.0.7
+        if: steps.clang-cache.outputs.cache-hit != 'true'
         run: |
-          mkdir -p "$CLANG_DIR" && cd "$CLANG_DIR"
+          mkdir -p "$CLANG_DIR"
           echo "Fetching latest ZyC Clang 15.0.7 release URL..."
 
           CLANG_URL=$(curl -s https://api.github.com/repos/ZyCromerZ/Clang/releases | grep -o "https://github.com/ZyCromerZ/Clang/releases/download/.*/Clang-15.0.7-.*\.tar\.gz" | head -n 1)
@@ -74,53 +126,115 @@ jobs:
           curl -LSs "$CLANG_URL" -o zyc_clang.tar.gz
           
           echo "Extracting Clang..."
-          tar -xf zyc_clang.tar.gz || tar -xzvf zyc_clang.tar.gz
+          tar -zxf zyc_clang.tar.gz -C "$CLANG_DIR" --strip-components=1
           rm -f zyc_clang.tar.gz
           
           echo "CLANG_VERSION=ZyC Clang 15.0.7" >> $GITHUB_ENV
 
-      - name: 📥 Clone Kernel Source
-        run: |
-          git clone --depth=1 -b "${{ env.KERNEL_BRANCH }}" "${{ env.KERNEL_URL }}" "${{ env.KERNEL_DIR }}"
-
-      - name: 🦊 Inject KernelSU
-        if: ${{ inputs.INJECT_KSU == true }}
+      - name: 🛠️ Fix Resource Errors
         working-directory: ${{ env.KERNEL_DIR }}
-        run: curl -LSs "https://raw.githubusercontent.com/backslashxx/KernelSU/refs/heads/master/kernel/setup.sh" | bash -s master
+        run: |
+          [ -f kernel/sched/sched.h ] && sed -i 's/cpu_rq(cpu)->cfs->cumulative_runnable_avg/cpu_rq(cpu)->cfs.cumulative_runnable_avg/g' kernel/sched/sched.h
 
-      - name: 🏗️ Build Kernel
+      - name: ⚙️ Generate Defconfig
         working-directory: ${{ env.KERNEL_DIR }}
         run: |
           export PATH="$GITHUB_WORKSPACE/$CLANG_DIR/bin:$PATH"
-          make O=$OUT_DIR ARCH=${{ env.ARCH }} ${{ env.DEFCONFIG }}
-          make -j$(nproc --all) O=$OUT_DIR ARCH=${{ env.ARCH }} CC="clang" CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- CONFIG_LOCALVERSION_AUTO=n 2>&1 | tee build.log
+          make O=$OUT_DIR ARCH=${{ env.ARCH }} CC="clang" CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- ${{ env.DEFCONFIG }}
 
-      - name: 🔍 Package Zip
+      - name: 📝 Apply Tweak & Configs
+        working-directory: ${{ env.KERNEL_DIR }}
+        run: |
+          export PATH="$GITHUB_WORKSPACE/$CLANG_DIR/bin:$PATH"
+          
+          sed -i 's/CONFIG_DEFAULT_HOSTNAME=".*/CONFIG_DEFAULT_HOSTNAME="'"${{ inputs.DEFAULT_HOSTNAME }}"'"/' "$OUT_DIR/.config"
+          [ -n "${{ inputs.LOCALVERSION }}" ] && sed -i 's/CONFIG_LOCALVERSION=".*/CONFIG_LOCALVERSION="'"${{ inputs.LOCALVERSION }}"'"/' "$OUT_DIR/.config"
+
+          enable_config() { ./scripts/config --file "$OUT_DIR/.config" --enable "$1"; }
+          disable_config() { ./scripts/config --file "$OUT_DIR/.config" --disable "$1"; }
+          set_config() { ./scripts/config --file "$OUT_DIR/.config" --set-val "$1" "$2"; }
+
+          if [ "${{ inputs.APPLY_TWEAKS }}" == "true" ]; then
+            echo "Applying Universal & EAS Tweaks..."
+            disable_config CONFIG_KASAN; disable_config CONFIG_LOCKDEP; disable_config CONFIG_MSM_KGSL_DEBUG
+            enable_config CONFIG_JUMP_LABEL; set_config CONFIG_HZ 300; enable_config CONFIG_HZ_300; enable_config CONFIG_SCHED_AUTOGROUP; enable_config CONFIG_NO_HZ_IDLE
+            enable_config CONFIG_WQ_POWER_EFFICIENT_DEFAULT; enable_config CONFIG_PM_AUTOSLEEP
+            
+            enable_config CONFIG_ZRAM; enable_config CONFIG_ZRAM_LZ4_COMPRESS
+            enable_config CONFIG_TCP_CONG_BBR; ./scripts/config --file "$OUT_DIR/.config" --set-str CONFIG_DEFAULT_TCP_CONG bbr
+            enable_config CONFIG_MQ_IOSCHED_KYBER; enable_config CONFIG_IOSCHED_BFQ
+
+            enable_config CONFIG_CPU_BOOST; enable_config CONFIG_DYNAMIC_STUNE_BOOST; enable_config CONFIG_SCHED_TUNE; enable_config CONFIG_SCHED_WALT; enable_config CONFIG_ENERGY_MODEL
+            enable_config CONFIG_CPU_FREQ_GOV_SCHEDUTIL; ./scripts/config --file "$OUT_DIR/.config" --set-str CONFIG_DEFAULT_GOVERNOR schedutil
+          fi
+
+          if [ "${{ inputs.INJECT_KSU }}" == "true" ]; then
+            enable_config CONFIG_KSU; enable_config CONFIG_KSU_TAMPER_SYSCALL_TABLE
+          fi
+
+          make O=$OUT_DIR ARCH=${{ env.ARCH }} CC="clang" CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- olddefconfig
+
+      - name: 🏗️ Build Kernel Image
+        working-directory: ${{ env.KERNEL_DIR }}
+        run: |
+          export PATH="/usr/lib/ccache:$GITHUB_WORKSPACE/$CLANG_DIR/bin:$PATH"
+          export KBUILD_BUILD_USER="${{ inputs.BUILD_USER }}"
+          export KBUILD_BUILD_HOST="${{ inputs.BUILD_HOST }}"
+          
+          make -j$(nproc --all) O=$OUT_DIR ARCH=${{ env.ARCH }} \
+            CC="ccache clang" \
+            HOSTCC="ccache clang" \
+            HOSTCXX="ccache clang++" \
+            CLANG_TRIPLE=aarch64-linux-gnu- \
+            CROSS_COMPILE=aarch64-linux-gnu- \
+            CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+            CONFIG_LOCALVERSION_AUTO=n \
+            KCFLAGS="-Wno-address -Wno-implicit-function-declaration" 2>&1 | tee build.log
+
+      - name: 🔍 Locate Image & Create Flashable Zip
         id: img
         working-directory: ${{ env.KERNEL_DIR }}
         run: |
-          IMAGE=$(find "$PWD/$OUT_DIR/arch/arm64/boot" -name "Image.gz-dtb" -o -name "Image.gz" | head -n1)
+          IMAGE=$(find "$PWD/$OUT_DIR/arch/arm64/boot" -name "Image.gz-dtb" -o -name "Image.gz" -o -name "Image" 2>/dev/null | head -n1)
           cd "$GITHUB_WORKSPACE"
           git clone --depth=1 https://github.com/ExXyrou/kernel_flashable AnyKernel3
           cp "$IMAGE" AnyKernel3/
+          
+          FINAL_LOCALVER="${{ inputs.LOCALVERSION }}"
+          [ -z "$FINAL_LOCALVER" ] && FINAL_LOCALVER=$(grep "^CONFIG_LOCALVERSION=" "$GITHUB_WORKSPACE/$KERNEL_DIR/$OUT_DIR/.config" | cut -d'"' -f2) || FINAL_LOCALVER=$(echo "$FINAL_LOCALVER" | sed 's/^-//')
+          sed -i -E 's/^(kernel\.string=).*/\1'"$FINAL_LOCALVER"'/' AnyKernel3/anykernel.sh
+          
           TIMESTAMP=$(date +'%Y%m%d')
-          ZIP_NAME="Kernel-EAS-lavender-${TIMESTAMP}.zip"
+          ZIP_NAME="Kernel-EAS-lavender-4.4${{ inputs.LOCALVERSION }}-${TIMESTAMP}.zip"
           cd AnyKernel3 && zip -r9 "$ZIP_NAME" * -x ".git/*"
-          echo "zip_path=$GITHUB_WORKSPACE/AnyKernel3/$ZIP_NAME" >> "$GITHUB_OUTPUT"
+          echo "zip_path=$GITHUB_WORKSPACE/AnyKernel3/$ZIP_NAME" >> "$GITHUB_OUTPUT"; echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
 
-      - name: ✅ Notify Telegram - Success
+      - name: ✅ Notify Telegram & Send Kernel - Build Success
         if: success()
         run: |
           END_TIME=$(date +%s)
           DURATION=$((END_TIME - ${{ env.BUILD_START_TIME }}))
-          DUR_STR="$((DURATION / 60))m $((DURATION % 60))s"
-          MSG=$(printf '✅ <b>BUILD SUCCESS</b>\n\n📱 <b>Device:</b> Lavender\n🏷️ <b>Kernel Name:</b> %s\n⏱️ <b>Duration:</b> %s\n🛠️ <b>Clang:</b> %s' "${{ inputs.LOCALVERSION }}" "$DUR_STR" "${{ env.CLANG_VERSION }}")
-          
-          curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendMessage" -d chat_id="${{ secrets.CHAT_ID }}" -d parse_mode="HTML" -d text="$MSG"
-          curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendDocument" -F chat_id="${{ secrets.CHAT_ID }}" -F document=@"${{ steps.img.outputs.zip_path }}"
+          DURATION_STR="$((DURATION / 60))m $((DURATION % 60))s"
 
-      - name: ❌ Notify Telegram - Failed
+          MESSAGE=$(printf '✅ <b>BUILD SUCCESS</b>\n━━━━━━━━━━━━━━━━━━━\n📱 <b>Device:</b> Lavender\n🏷️ <b>Kernel name:</b> 4.4%s\n🦊 <b>Built-in KSU:</b> %s\n🛠️ <b>Nama Clang:</b> ZyC Clang 15.0.7\n⏱️ <b>Waktu yang diperlukan:</b> %s' "${{ inputs.LOCALVERSION }}" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
+          
+          curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendDocument" \
+            -F chat_id="${{ secrets.CHAT_ID }}" \
+            -F document="@${{ steps.img.outputs.zip_path }}" \
+            -F parse_mode="HTML" \
+            -F caption="$MESSAGE"
+
+      - name: ❌ Notify Telegram & Send Log - Build Failed
         if: failure()
         run: |
-          MSG=$(printf '❌ <b>BUILD FAILED</b>\n\n📱 <b>Device:</b> Lavender\n🏷️ <b>Kernel Name:</b> %s\n🛠️ <b>Clang:</b> %s\n\nCheck logs for details.' "${{ inputs.LOCALVERSION }}" "${{ env.CLANG_VERSION }}")
-          curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendMessage" -d chat_id="${{ secrets.CHAT_ID }}" -d parse_mode="HTML" -d text="$MSG"
+          END_TIME=$(date +%s)
+          DURATION=$((END_TIME - ${{ env.BUILD_START_TIME }}))
+          DURATION_STR="$((DURATION / 60))m $((DURATION % 60))s"
+
+          MESSAGE=$(printf '❌ <b>BUILD FAILED</b>\n━━━━━━━━━━━━━━━━━━━\n📱 <b>Device:</b> Lavender\n🏷️ <b>Kernel name:</b> 4.4%s\n🦊 <b>Built-in KSU:</b> %s\n🛠️ <b>Nama Clang:</b> ZyC Clang 15.0.7\n⏱️ <b>Waktu yang diperlukan:</b> %s\n━━━━━━━━━━━━━━━━━━━\n💥 <i>Silakan periksa file build.log di atas.</i>' "${{ inputs.LOCALVERSION }}" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
+          
+          curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendDocument" \
+            -F chat_id="${{ secrets.CHAT_ID }}" \
+            -F document="@${{ env.KERNEL_DIR }}/build.log" \
+            -F parse_mode="HTML" \
+            -F caption="$MESSAGE"
