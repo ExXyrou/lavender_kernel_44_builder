@@ -1,4 +1,4 @@
-name: 🛠️ EAS KERNEL BUILDER
+name: 🛠️ SAN KERNEL 4.4 BUILD
 
 on:
   workflow_dispatch:
