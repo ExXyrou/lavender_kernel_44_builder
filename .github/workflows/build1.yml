@@ -19,6 +19,11 @@ on:
         description: '🖥️ Build Hostname (e.g., redmi)'
         required: true
         type: string
+      QTI_HAPTICS:
+        description: '📳 Add Qti Haptics'
+        required: true
+        default: false
+        type: boolean
       APPLY_TWEAKS:
         description: '🚀 Apply Performance & Gaming Tweaks'
         required: true
@@ -90,7 +95,7 @@ jobs:
       - name: 📢 Notify Telegram - Build Started
         run: |
           MESSAGE=$(printf '🛠️ <b>START BUILD</b>\n\n📱 <b>Device:</b> Lavender\n🏷️ <b>Kernel name:</b> 4.4%s\n🦊 <b>Built-in KSU:</b> %s\n🛠️ <b>Clang Version:</b> ZyC Clang 15.0.7' "${{ inputs.LOCALVERSION }}" "${{ inputs.INJECT_KSU }}")
-          curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendMessage" --data-urlencode chat_id="${{ secrets.CHAT_ID }}" --data-urlencode parse_mode="HTML" --data-urlencode text="$MESSAGE"
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_API }}/sendMessage" --data-urlencode chat_id="${{ secrets.CHAT_ID }}" --data-urlencode parse_mode="HTML" --data-urlencode text="$MESSAGE"
 
       - name: 📥 Clone Kernel Source
         run: |
@@ -165,9 +170,14 @@ jobs:
           enable_config() { ./scripts/config --file "$OUT_DIR/.config" --enable "$1"; }
           disable_config() { ./scripts/config --file "$OUT_DIR/.config" --disable "$1"; }
           set_config() { ./scripts/config --file "$OUT_DIR/.config" --set-val "$1" "$2"; }
+          
+          if [ "${{ inputs.QTI_HAPTICS }}" == "true" ]; then
+            echo "Add Support Qti..."
+            enable_config CONFIG_INPUT_QTI_HAPTICS
+          fi
 
           if [ "${{ inputs.APPLY_TWEAKS }}" == "true" ]; then
-            echo "Applying Universal & EAS Tweaks..."
+            echo "Applying Tweaks..."
             disable_config CONFIG_KASAN; disable_config CONFIG_LOCKDEP; disable_config CONFIG_MSM_KGSL_DEBUG
             enable_config CONFIG_JUMP_LABEL; set_config CONFIG_HZ 300; enable_config CONFIG_HZ_300; enable_config CONFIG_SCHED_AUTOGROUP; enable_config CONFIG_NO_HZ_IDLE
             enable_config CONFIG_WQ_POWER_EFFICIENT_DEFAULT; enable_config CONFIG_PM_AUTOSLEEP
@@ -239,7 +249,7 @@ jobs:
 
           MESSAGE=$(printf '✅ <b>BUILD SUCCESS</b>\n\n📱 <b>Device:</b> Lavender\n🏷️ <b>Kernel name:</b> 4.4%s\n🦊 <b>Built-in KSU:</b> %s\n🛠️ <b>Clang Version:</b> ZyC Clang 15.0.7\n⏱️ <b>Time Elapsed:</b> %s' "${{ inputs.LOCALVERSION }}" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
           
-          curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendDocument" \
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_API }}/sendDocument" \
             -F chat_id="${{ secrets.CHAT_ID }}" \
             -F document="@${{ steps.img.outputs.zip_path }}" \
             -F parse_mode="HTML" \
@@ -254,7 +264,7 @@ jobs:
 
           MESSAGE=$(printf '❌ <b>BUILD FAILED</b>\n\n📱 <b>Device:</b> Lavender\n🏷️ <b>Kernel name:</b> 4.4%s\n🦊 <b>Built-in KSU:</b> %s\n🛠️ <b>Clang Version:</b> ZyC Clang 15.0.7\n⏱️ <b>Time Elapsed:</b> %s\n\n💥 <i>Please check the build.log file above.</i>' "${{ inputs.LOCALVERSION }}" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
           
-          curl -s -X POST "https://api.telegram.org/bot8171609290:AAHLG3pBdv7BGZXJ6B1USXZvqYa4M-QeQb8/sendDocument" \
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_API }}/sendDocument" \
             -F chat_id="${{ secrets.CHAT_ID }}" \
             -F document="@${{ env.KERNEL_DIR }}/build.log" \
             -F parse_mode="HTML" \
