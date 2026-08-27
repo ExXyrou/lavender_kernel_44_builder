@@ -7,6 +7,11 @@ on:
         description: '🏷️ Custom Kernel Name (e.g., -MyKernel-v1.0)'
         required: false
         type: string
+      LOCALVERSION_AUTO:
+        description: '❓ Enable Local Version Auto'
+        required: true
+        default: false
+        type: boolean
       DEFAULT_HOSTNAME:
         description: '💻 Kernel Hostname (e.g., xiaomi@redmi)'
         required: true
@@ -72,7 +77,7 @@ jobs:
 
           sudo apt-get install -yq --no-install-recommends \
             -o Acquire::Retries=3 \
-            bc bison libssl-dev libelf-dev build-essential python3 python3-pip curl git zip unzip wget ccache libncurses-dev rsync gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi
+            bc bison libssl-dev libelf-dev build-essential python3 python3-pip curl git zip unzip wget ccache libncurses-dev rsync gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi xz-utils
         
       - name: ⚡ Setup Compiler Cache
         run: |
@@ -141,6 +146,17 @@ jobs:
           set_config() { ./scripts/config --file "$OUT_DIR/.config" --set-val "$1" "$2"; }
           set_str() { ./scripts/config --file "$OUT_DIR/.config" --set-str "$1" "$2"; }
 
+          if [ "${{ inputs.LOCALVERSION_AUTO }}" == "true" ]; then
+            enable_config CONFIG_LOCALVERSION_AUTO
+          else
+            disable_config CONFIG_LOCALVERSION_AUTO
+          fi
+
+          disable_config CONFIG_KERNEL_GZIP
+          enable_config CONFIG_KERNEL_XZ
+          enable_config CONFIG_RD_XZ
+          sed -i 's/CONFIG_BUILD_ARM64_APPENDED_KERNEL_IMAGE_NAME="Image.gz-dtb"/CONFIG_BUILD_ARM64_APPENDED_KERNEL_IMAGE_NAME="Image.xz-dtb"/g' "$OUT_DIR/.config"
+
           if [ "${{ inputs.APPLY_TWEAKS }}" == "true" ]; then
             echo "🚀 Applying Performance & Gaming Tweaks for HMP kernel..."
             disable_config CONFIG_KASAN
@@ -180,30 +196,63 @@ jobs:
           export PATH="/usr/lib/ccache:$GITHUB_WORKSPACE/$CLANG_DIR/bin:$PATH"
           export KBUILD_BUILD_USER="${{ inputs.BUILD_USER }}"
           export KBUILD_BUILD_HOST="${{ inputs.BUILD_HOST }}"
-          make -j$(nproc --all) O=$OUT_DIR ARCH=${{ env.ARCH }} CC="ccache clang" HOSTCC="ccache clang" HOSTCXX="ccache clang++" CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- CONFIG_LOCALVERSION_AUTO=n KCFLAGS="-Wno-address -Wno-implicit-function-declaration" 2>&1 | tee build.log
+          make -j$(nproc --all) O=$OUT_DIR ARCH=${{ env.ARCH }} CC="ccache clang" HOSTCC="ccache clang" HOSTCXX="ccache clang++" CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- KCFLAGS="-Wno-address -Wno-implicit-function-declaration" 2>&1 | tee build.log
 
-          if [ ! -f "$OUT_DIR/arch/arm64/boot/Image.gz-dtb" ] && [ ! -f "$OUT_DIR/arch/arm64/boot/Image.gz" ] && [ ! -f "$OUT_DIR/arch/arm64/boot/Image" ]; then
+          if [ ! -f "$OUT_DIR/arch/arm64/boot/Image.xz-dtb" ] && [ ! -f "$OUT_DIR/arch/arm64/boot/Image.xz" ] && [ ! -f "$OUT_DIR/arch/arm64/boot/Image.gz-dtb" ] && [ ! -f "$OUT_DIR/arch/arm64/boot/Image.gz" ] && [ ! -f "$OUT_DIR/arch/arm64/boot/Image" ]; then
             echo "❌ Kernel image not found!"
             exit 1
           fi
           echo "✅ Kernel image created successfully."
 
-      - name: 🔍 Locate Image & Create Flashable Zip
+      - name: 🔍 Locate Image, Compress to XZ, & Create Flashable Zip
         id: img
         working-directory: ${{ env.KERNEL_DIR }}
         run: |
-          IMAGE=$(find "$PWD/$OUT_DIR/arch/arm64/boot" -name "Image.gz-dtb" -o -name "Image.gz" -o -name "Image" 2>/dev/null | head -n1)
+          IMAGE=$(find "$PWD/$OUT_DIR/arch/arm64/boot" -type f \( -name "Image.xz-dtb" -o -name "Image.xz" -o -name "Image.gz-dtb" -o -name "Image.gz" -o -name "Image" \) | head -n1)
+          
+          if [ -z "$IMAGE" ]; then
+            echo "❌ No kernel image found!"
+            exit 1
+          fi
+          
+          echo "📄 Found: $(basename "$IMAGE")"
+          
+          if [[ "$IMAGE" == *"dtb"* ]]; then
+            OUTPUT_NAME="Image.xz-dtb"
+          else
+            OUTPUT_NAME="Image.xz"
+          fi
+          
+          if [[ "$IMAGE" == *.xz ]]; then
+            cp "$IMAGE" "$GITHUB_WORKSPACE/$OUTPUT_NAME"
+            echo "✅ Image is already in .xz format"
+          else
+            echo "🗜️ Compressing image to .xz..."
+            xz -f -k "$IMAGE" -c > "$GITHUB_WORKSPACE/$OUTPUT_NAME"
+            echo "✅ Compression completed: $OUTPUT_NAME"
+          fi
+          
           cd "$GITHUB_WORKSPACE"
-          git clone --depth=1 https://github.com/ExXyrou/kernel_flashable AnyKernel3
-          cp "$IMAGE" AnyKernel3/
+          git clone --depth=1 https://github.com/ExXyrou/san_kernel_flashable AnyKernel3
+          
+          cp "$GITHUB_WORKSPACE/$OUTPUT_NAME" AnyKernel3/
+          
+          cd AnyKernel3
+          if [ -f anykernel.sh ]; then
+            sed -i 's/Image\.gz-dtb/Image.xz-dtb/g; s/Image\.gz/Image.xz/g; s/Image$/Image.xz/g' anykernel.sh
+            if grep -q "kernel_name=" anykernel.sh; then
+              sed -i "s/^kernel_name=.*/kernel_name=\"$OUTPUT_NAME\"/" anykernel.sh
+            fi
+          fi
           
           FINAL_LOCALVER="${{ inputs.LOCALVERSION }}"
           [ -z "$FINAL_LOCALVER" ] && FINAL_LOCALVER=$(grep "^CONFIG_LOCALVERSION=" "$GITHUB_WORKSPACE/$KERNEL_DIR/$OUT_DIR/.config" | cut -d'"' -f2) || FINAL_LOCALVER=$(echo "$FINAL_LOCALVER" | sed 's/^-//')
-          sed -i -E 's/^(kernel\.string=).*/\1'"$FINAL_LOCALVER"'/' AnyKernel3/anykernel.sh
+          sed -i -E 's/^(kernel\.string=).*/\1'"$FINAL_LOCALVER"'/' anykernel.sh
           
           TIMESTAMP=$(date +'%Y%m%d')
           ZIP_NAME="Kernel-lavender-4.4${{ inputs.LOCALVERSION }}-${TIMESTAMP}.zip"
-          cd AnyKernel3 && zip -r9 "$ZIP_NAME" * -x ".git/*"
+          zip -r9 "$ZIP_NAME" * -x ".git/*"
+          
           echo "zip_path=$GITHUB_WORKSPACE/AnyKernel3/$ZIP_NAME" >> "$GITHUB_OUTPUT"
           echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
 
