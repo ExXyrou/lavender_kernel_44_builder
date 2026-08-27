@@ -279,7 +279,7 @@ jobs:
             CONFIG_LOCALVERSION_AUTO=n \
             KCFLAGS="-Wno-address -Wno-implicit-function-declaration" 2>&1 | tee build.log
 
-          if [ ! -f "$OUT_DIR/arch/arm64/boot/Image.gz-dtb" ] && [ ! -f "$OUT_DIR/arch/arm64/boot/Image.gz" ] && [ ! -f "$OUT_DIR/arch/arm64/boot/Image" ]; then
+          if [ ! -f "$OUT_DIR/arch/arm64/boot/Image.xz-dtb" ] && [ ! -f "$OUT_DIR/arch/arm64/boot/Image.xz" ] && [ ! -f "$OUT_DIR/arch/arm64/boot/Image" ]; then
             echo "❌ Kernel image not found!"
             exit 1
           fi
@@ -289,9 +289,9 @@ jobs:
         id: img
         working-directory: ${{ env.KERNEL_DIR }}
         run: |
-          IMAGE=$(find "$PWD/$OUT_DIR/arch/arm64/boot" -name "Image.gz-dtb" -o -name "Image.gz" -o -name "Image" 2>/dev/null | head -n1)
+          IMAGE=$(find "$PWD/$OUT_DIR/arch/arm64/boot" -name "Image.xz-dtb" -o -name "Image.xz" -o -name "Image" 2>/dev/null | head -n1)
           cd "$GITHUB_WORKSPACE"
-          git clone --depth=1 https://github.com/ExXyrou/kernel_flashable AnyKernel3
+          git clone --depth=1 https://github.com/ExXyrou/san_kernel_flashable AnyKernel3
           cp "$IMAGE" AnyKernel3/
           
           FINAL_LOCALVER="${{ inputs.LOCALVERSION }}"
