@@ -1,4 +1,4 @@
-name: 🛠️ SAN KERNEL 4.4 BUILD
+name: 🛠️ TES BUILD SAN KERNEL 4.4
 
 on:
   workflow_dispatch:
@@ -185,6 +185,13 @@ jobs:
         working-directory: ${{ env.KERNEL_DIR }}
         run: |
           [ -f kernel/sched/sched.h ] && sed -i 's/cpu_rq(cpu)->cfs->cumulative_runnable_avg/cpu_rq(cpu)->cfs.cumulative_runnable_avg/g' kernel/sched/sched.h
+
+          BRANCH="${{ inputs.KERNEL_BRANCH }}"
+          if [ "$BRANCH" == "oldcam-ksun" ]; then
+            echo "Removing __nocfi macro for KernelSU Next..."
+            find drivers/kernelsu KernelSU-Next -type f -name "*.c" -exec sed -i 's/__nocfi//g' {} + 2>/dev/null || true
+            find drivers/kernelsu KernelSU-Next -type f -name "*.h" -exec sed -i 's/__nocfi//g' {} + 2>/dev/null || true
+          fi
 
       - name: ⚙️ Generate Defconfig
         working-directory: ${{ env.KERNEL_DIR }}
