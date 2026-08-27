@@ -252,10 +252,15 @@ jobs:
           fi
           
           BRANCH="${{ inputs.KERNEL_BRANCH }}"
-          if ([ "$BRANCH" == "oldcam" ] && [ "${{ inputs.INJECT_KSU }}" == "true" ]) || [ "$BRANCH" == "oldcam-ksun" ] || [ "$BRANCH" == "oldcam-resukisu" ]; then
-            echo "🦊 Injecting KernelSU Config..."
+          if [ "$BRANCH" == "oldcam" ] && [ "${{ inputs.INJECT_KSU }}" == "true" ]; then
+            echo "🦊 Injecting xxKernelSU Config..."
             enable_config CONFIG_KSU
             enable_config CONFIG_KSU_TAMPER_SYSCALL_TABLE
+          fi
+          
+          if [ "$BRANCH" == "oldcam-ksun" ] || [ "$BRANCH" == "oldcam-resukisu" ]; then
+            enable_config CONFIG_KALLSYMS
+            enable_config CONFIG_KALLSYMS_ALL
           fi
 
           make O=$OUT_DIR ARCH=${{ env.ARCH }} \
