@@ -207,7 +207,7 @@ jobs:
           fi
 
           if [ "${{ inputs.INJECT_KSU }}" == "true" ]; then
-            echo "🦊 Injecting xxKernelSU Config..."
+            echo "🦊 Injecting KernelSU Config..."
             enable_config CONFIG_KSU
             enable_config CONFIG_KSU_TAMPER_SYSCALL_TABLE
           fi
