@@ -7,6 +7,11 @@ on:
         description: '🏷️ Custom Kernel Name (e.g., -MyKernel-v1.0)'
         required: false
         type: string
+      LOCALVERSION_AUTO:
+        description: '❓ Enable Local Version Auto'
+        required: true
+        default: false
+        type: boolean
       DEFAULT_HOSTNAME:
         description: '💻 Kernel Hostname (e.g., xiaomi@redmi)'
         required: true
@@ -20,12 +25,12 @@ on:
         required: true
         type: string
       QTI_HAPTICS:
-        description: '📳 Add Qti Haptics'
+        description: '📳 Include QTI Haptics support'
         required: true
         default: false
         type: boolean
       APPLY_TWEAKS:
-        description: '🚀 Apply Performance & Gaming Tweaks'
+        description: '🚀 Apply Performance and Gaming Tweaks'
         required: true
         default: false
         type: boolean
@@ -172,18 +177,24 @@ jobs:
           set_config() { ./scripts/config --file "$OUT_DIR/.config" --set-val "$1" "$2"; }
           set_str() { ./scripts/config --file "$OUT_DIR/.config" --set-str "$1" "$2"; }
           
+          if [ "${{ inputs.LOCALVERSION_AUTO }}" == "true" ]; then
+            enable_config CONFIG_LOCALVERSION_AUTO
+          else
+            disable_config CONFIG_LOCALVERSION_AUTO
+          fi
+
           disable_config CONFIG_KERNEL_GZIP
           enable_config CONFIG_KERNEL_XZ
           enable_config CONFIG_RD_XZ
           sed -i 's/CONFIG_BUILD_ARM64_APPENDED_KERNEL_IMAGE_NAME="Image.gz-dtb"/CONFIG_BUILD_ARM64_APPENDED_KERNEL_IMAGE_NAME="Image.xz-dtb"/g' "$OUT_DIR/.config"
 
           if [ "${{ inputs.QTI_HAPTICS }}" == "true" ]; then
-            echo "📳 Enabling QTI Haptics support..."
+            echo "Enabling QTI Haptics support..."
             enable_config CONFIG_INPUT_QTI_HAPTICS
           fi
 
           if [ "${{ inputs.APPLY_TWEAKS }}" == "true" ]; then
-            echo "🚀 Applying Performance & Gaming Tweaks..."
+            echo "Applying Performance & Gaming Tweaks..."
             disable_config CONFIG_KASAN
             disable_config CONFIG_LOCKDEP
             disable_config CONFIG_MSM_KGSL_DEBUG
@@ -212,7 +223,7 @@ jobs:
           fi
 
           if [ "${{ inputs.INJECT_KSU }}" == "true" ]; then
-            echo "🦊 Injecting KernelSU configuration..."
+            echo "Injecting KernelSU configuration..."
             enable_config CONFIG_KSU
             enable_config CONFIG_KSU_TAMPER_SYSCALL_TABLE
           fi
@@ -242,7 +253,6 @@ jobs:
             CLANG_TRIPLE=aarch64-linux-gnu- \
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
-            CONFIG_LOCALVERSION_AUTO=n \
             KCFLAGS="-Wno-address -Wno-implicit-function-declaration" 2>&1 | tee build.log
 
           if [ ! -f "$OUT_DIR/arch/arm64/boot/Image.xz-dtb" ] && [ ! -f "$OUT_DIR/arch/arm64/boot/Image.xz" ] && [ ! -f "$OUT_DIR/arch/arm64/boot/Image.gz-dtb" ] && [ ! -f "$OUT_DIR/arch/arm64/boot/Image.gz" ] && [ ! -f "$OUT_DIR/arch/arm64/boot/Image" ]; then
