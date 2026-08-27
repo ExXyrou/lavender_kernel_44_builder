@@ -78,7 +78,7 @@ jobs:
               echo "ksu_name=None" >> $GITHUB_OUTPUT
             fi
           elif [ "$BRANCH" == "oldcam-ksun" ]; then
-            echo "ksu_name=KernelSU Next" >> $GITHUB_OUTPUT
+            echo "ksu_name=KernelSU-Next" >> $GITHUB_OUTPUT
           elif [ "$BRANCH" == "oldcam-resukisu" ]; then
             echo "ksu_name=ResukiSU" >> $GITHUB_OUTPUT
           else
