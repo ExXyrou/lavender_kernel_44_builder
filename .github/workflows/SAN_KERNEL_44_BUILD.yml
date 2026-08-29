@@ -3,6 +3,15 @@ name: 🛠️ SAN KERNEL 4.4 BUILD
 on:
   workflow_dispatch:
     inputs:
+      KERNEL_BRANCH:
+        description: '🌿 Select Kernel Branch'
+        required: true
+        default: 'oldcam-plts'
+        type: choice
+        options:
+          - oldcam-plts
+          - oldcam-st74
+          - oldcam-st78
       LOCALVERSION:
         description: '🏷️ Custom Kernel Name (e.g., -MyKernel-v1.0)'
         required: false
@@ -34,6 +43,11 @@ on:
         required: true
         default: false
         type: boolean
+      BUILD_NEWCAM:
+        description: '📷 Switch to Newcam Build'
+        required: true
+        default: false
+        type: boolean
       INJECT_KSU:
         description: '🦊 Inject KernelSU'
         required: true
@@ -47,7 +61,6 @@ env:
   ARCH: arm64
   SUBARCH: arm64
   KERNEL_URL: https://github.com/ExXyrou/san_kernel.git
-  KERNEL_BRANCH: oldcam
   DEFCONFIG: lavender_defconfig
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
 
@@ -99,13 +112,13 @@ jobs:
 
       - name: 📢 Notify Telegram - Build Started
         run: |
-          MESSAGE=$(printf '🛠️ <b>BUILD STARTED</b>\n\n📱 <b>Device:</b> Lavender\n🏷️ <b>Kernel Name:</b> 4.4%s\n📳 <b>QTI Haptics Support:</b> %s\n🦊 <b>Built-in KernelSU:</b> %s\n🛠️ <b>Clang Version:</b> ZyC Clang 15.0.7' "${{ inputs.LOCALVERSION }}" "${{ inputs.QTI_HAPTICS }}" "${{ inputs.INJECT_KSU }}")
+          MESSAGE=$(printf '🛠️ <b>BUILD STARTED</b>\n\n📱 <b>Device:</b> Lavender\n🌿 <b>Branch:</b> %s\n🏷️ <b>Kernel Name:</b> 4.4%s\n📳 <b>QTI Haptics Support:</b> %s\n🦊 <b>Built-in KernelSU:</b> %s\n🛠️ <b>Clang Version:</b> ZyC Clang 15.0.7' "${{ inputs.KERNEL_BRANCH }}" "${{ inputs.LOCALVERSION }}" "${{ inputs.QTI_HAPTICS }}" "${{ inputs.INJECT_KSU }}")
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_API }}/sendMessage" --data-urlencode chat_id="${{ secrets.CHAT_ID }}" --data-urlencode parse_mode="HTML" --data-urlencode text="$MESSAGE"
 
       - name: 📥 Clone Kernel Source
         run: |
           rm -rf "${{ env.KERNEL_DIR }}"
-          git clone --depth=1 -b "${{ env.KERNEL_BRANCH }}" "${{ env.KERNEL_URL }}" "${{ env.KERNEL_DIR }}"
+          git clone --depth=1 -b "${{ inputs.KERNEL_BRANCH }}" "${{ env.KERNEL_URL }}" "${{ env.KERNEL_DIR }}"
 
       - name: 🦊 Inject KernelSU
         if: ${{ inputs.INJECT_KSU == true }}
@@ -194,32 +207,48 @@ jobs:
           fi
 
           if [ "${{ inputs.APPLY_TWEAKS }}" == "true" ]; then
-            echo "Applying Performance & Gaming Tweaks..."
+            echo "Applying Tweaks..."
             disable_config CONFIG_KASAN
             disable_config CONFIG_LOCKDEP
+            disable_config CONFIG_PROVE_LOCKING
+            disable_config CONFIG_DEBUG_SPINLOCK
+            disable_config CONFIG_DEBUG_MUTEXES
+            disable_config CONFIG_DEBUG_ATOMIC_SLEEP
+            disable_config CONFIG_SLUB_DEBUG
             disable_config CONFIG_MSM_KGSL_DEBUG
-            set_config CONFIG_HZ 300
-            enable_config CONFIG_HZ_300
-            enable_config CONFIG_NO_HZ_IDLE
-            enable_config CONFIG_SCHED_AUTOGROUP
-            disable_config CONFIG_PM_AUTOSLEEP
-            disable_config CONFIG_WQ_POWER_EFFICIENT_DEFAULT
-            enable_config CONFIG_ZRAM
-            enable_config CONFIG_ZRAM_LZ4_COMPRESS
-            enable_config CONFIG_TCP_CONG_BBR
-            set_str CONFIG_DEFAULT_TCP_CONG bbr
-            enable_config CONFIG_MQ_IOSCHED_KYBER
-            enable_config CONFIG_IOSCHED_BFQ
-            set_str CONFIG_DEFAULT_IOSCHED "kyber"
-            enable_config CONFIG_CPU_FREQ_GOV_SCHEDUTIL
-            set_str CONFIG_DEFAULT_GOVERNOR schedutil
+            disable_config CONFIG_SCHED_DEBUG
             enable_config CONFIG_SCHED_WALT
             enable_config CONFIG_ENERGY_MODEL
             enable_config CONFIG_SCHED_TUNE
             enable_config CONFIG_DYNAMIC_STUNE_BOOST
+            enable_config CONFIG_CPU_FREQ_GOV_SCHEDUTIL
+            set_str CONFIG_DEFAULT_GOVERNOR "schedutil"
+            disable_config CONFIG_CPU_FREQ_GOV_INTERACTIVE
+            disable_config CONFIG_CPU_FREQ_GOV_CONSERVATIVE
+            disable_config CONFIG_CPU_FREQ_GOV_ONDEMAND
             enable_config CONFIG_CPU_BOOST
             enable_config CONFIG_CPU_INPUT_BOOST
-            enable_config CONFIG_MSM_ADRENO_IDLER
+            set_config CONFIG_HZ 300
+            enable_config CONFIG_HZ_300
+            enable_config CONFIG_NO_HZ_IDLE
+            disable_config CONFIG_SCHED_AUTOGROUP
+            enable_config CONFIG_RCU_BOOST
+            set_config CONFIG_RCU_BOOST_DELAY 500
+            disable_config CONFIG_MSM_ADRENO_IDLER
+            disable_config CONFIG_WQ_POWER_EFFICIENT_DEFAULT
+            enable_config CONFIG_ZRAM
+            enable_config CONFIG_ZRAM_LZ4_COMPRESS
+            enable_config CONFIG_CRYPTO_LZ4
+            enable_config CONFIG_MQ_IOSCHED_KYBER
+            enable_config CONFIG_IOSCHED_BFQ
+            set_str CONFIG_DEFAULT_IOSCHED "kyber"
+            enable_config CONFIG_NET_SCH_FQ
+            enable_config CONFIG_TCP_CONG_BBR
+            set_str CONFIG_DEFAULT_TCP_CONG "bbr"
+          fi
+          
+          if [ "${{ inputs.BUILD_NEWCAM }}" == "true" ]; then
+            enable_config CONFIG_XIAOMI_NEW_CAMERA_BLOBS
           fi
 
           if [ "${{ inputs.INJECT_KSU }}" == "true" ]; then
@@ -307,7 +336,7 @@ jobs:
           sed -i -E 's/^(kernel\.string=).*/\1'"$FINAL_LOCALVER"'/' anykernel.sh
           
           TIMESTAMP=$(date +'%Y%m%d')
-          ZIP_NAME="Kernel-lavender-4.4${{ inputs.LOCALVERSION }}-${TIMESTAMP}.zip"
+          ZIP_NAME="Kernel-lavender-4.4-${{ inputs.KERNEL_BRANCH }}${{ inputs.LOCALVERSION }}-${TIMESTAMP}.zip"
           zip -r9 "$ZIP_NAME" * -x ".git/*"
           
           echo "zip_path=$GITHUB_WORKSPACE/AnyKernel3/$ZIP_NAME" >> "$GITHUB_OUTPUT"
@@ -320,7 +349,7 @@ jobs:
           DURATION=$((END_TIME - ${{ env.BUILD_START_TIME }}))
           DURATION_STR="$((DURATION / 60))m $((DURATION % 60))s"
 
-          MESSAGE=$(printf '✅ <b>BUILD SUCCESS</b>\n\n📱 <b>Device:</b> Lavender\n🏷️ <b>Kernel Name:</b> 4.4%s\n📳 <b>QTI Haptics Support:</b> %s\n🦊 <b>Built-in KernelSU:</b> %s\n🛠️ <b>Clang Version:</b> ZyC Clang 15.0.7\n⏱️ <b>Time Elapsed:</b> %s' "${{ inputs.LOCALVERSION }}" "${{ inputs.QTI_HAPTICS }}" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
+          MESSAGE=$(printf '✅ <b>BUILD SUCCESS</b>\n\n📱 <b>Device:</b> Lavender\n🌿 <b>Branch:</b> %s\n🏷️ <b>Kernel Name:</b> 4.4%s\n📳 <b>QTI Haptics Support:</b> %s\n🦊 <b>Built-in KernelSU:</b> %s\n🛠️ <b>Clang Version:</b> ZyC Clang 15.0.7\n⏱️ <b>Time Elapsed:</b> %s' "${{ inputs.KERNEL_BRANCH }}" "${{ inputs.LOCALVERSION }}" "${{ inputs.QTI_HAPTICS }}" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
           
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_API }}/sendDocument" \
             -F chat_id="${{ secrets.CHAT_ID }}" \
@@ -335,7 +364,7 @@ jobs:
           DURATION=$((END_TIME - ${{ env.BUILD_START_TIME }}))
           DURATION_STR="$((DURATION / 60))m $((DURATION % 60))s"
 
-          MESSAGE=$(printf '❌ <b>BUILD FAILED</b>\n\n📱 <b>Device:</b> Lavender\n🏷️ <b>Kernel Name:</b> 4.4%s\n📳 <b>QTI Haptics Support:</b> %s\n🦊 <b>Built-in KernelSU:</b> %s\n🛠️ <b>Clang Version:</b> ZyC Clang 15.0.7\n⏱️ <b>Time Elapsed:</b> %s\n\n💥 <i>Please check the build.log file above.</i>' "${{ inputs.LOCALVERSION }}" "${{ inputs.QTI_HAPTICS }}" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
+          MESSAGE=$(printf '❌ <b>BUILD FAILED</b>\n\n📱 <b>Device:</b> Lavender\n🌿 <b>Branch:</b> %s\n🏷️ <b>Kernel Name:</b> 4.4%s\n📳 <b>QTI Haptics Support:</b> %s\n🦊 <b>Built-in KernelSU:</b> %s\n🛠️ <b>Clang Version:</b> ZyC Clang 15.0.7\n⏱️ <b>Time Elapsed:</b> %s\n\n💥 <i>Please check the build.log file above.</i>' "${{ inputs.KERNEL_BRANCH }}" "${{ inputs.LOCALVERSION }}" "${{ inputs.QTI_HAPTICS }}" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
           
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_API }}/sendDocument" \
             -F chat_id="${{ secrets.CHAT_ID }}" \
