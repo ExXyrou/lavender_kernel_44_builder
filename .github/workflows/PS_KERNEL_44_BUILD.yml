@@ -153,28 +153,38 @@ jobs:
           fi
 
           if [ "${{ inputs.APPLY_TWEAKS }}" == "true" ]; then
-            echo "🚀 Applying Performance & Gaming Tweaks for HMP kernel..."
+            echo "Applying Tweaks..."
             disable_config CONFIG_KASAN
             disable_config CONFIG_LOCKDEP
+            disable_config CONFIG_PROVE_LOCKING
+            disable_config CONFIG_DEBUG_SPINLOCK
+            disable_config CONFIG_DEBUG_MUTEXES
+            disable_config CONFIG_DEBUG_ATOMIC_SLEEP
+            disable_config CONFIG_SLUB_DEBUG
             disable_config CONFIG_MSM_KGSL_DEBUG
+            disable_config CONFIG_SCHED_DEBUG
+            enable_config CONFIG_SCHED_CORE_CTL
+            enable_config CONFIG_CPU_FREQ_GOV_INTERACTIVE
+            set_str CONFIG_DEFAULT_GOVERNOR "interactive"
+            enable_config CONFIG_CPU_BOOST
+            enable_config CONFIG_CPU_INPUT_BOOST
             set_config CONFIG_HZ 300
             enable_config CONFIG_HZ_300
             enable_config CONFIG_NO_HZ_IDLE
-            enable_config CONFIG_SCHED_AUTOGROUP
-            disable_config CONFIG_PM_AUTOSLEEP
+            disable_config CONFIG_SCHED_AUTOGROUP
+            enable_config CONFIG_RCU_BOOST
+            set_config CONFIG_RCU_BOOST_DELAY 500
+            disable_config CONFIG_MSM_ADRENO_IDLER
+            disable_config CONFIG_WQ_POWER_EFFICIENT_DEFAULT
             enable_config CONFIG_ZRAM
             enable_config CONFIG_ZRAM_LZ4_COMPRESS
-            enable_config CONFIG_TCP_CONG_BBR
-            set_str CONFIG_DEFAULT_TCP_CONG bbr
+            enable_config CONFIG_CRYPTO_LZ4
             enable_config CONFIG_MQ_IOSCHED_KYBER
             enable_config CONFIG_IOSCHED_BFQ
             set_str CONFIG_DEFAULT_IOSCHED "kyber"
-            enable_config CONFIG_CPU_FREQ_GOV_INTERACTIVE
-            set_str CONFIG_DEFAULT_GOVERNOR interactive
-            enable_config CONFIG_CPU_BOOST
-            enable_config CONFIG_CPU_INPUT_BOOST
-            enable_config CONFIG_MSM_ADRENO_IDLER
-            disable_config CONFIG_WQ_POWER_EFFICIENT_DEFAULT
+            enable_config CONFIG_NET_SCH_FQ
+            enable_config CONFIG_TCP_CONG_BBR
+            set_str CONFIG_DEFAULT_TCP_CONG "bbr"
           fi
 
           if [ "${{ inputs.INJECT_KSU }}" == "true" ]; then
