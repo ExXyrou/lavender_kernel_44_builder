@@ -21,15 +21,11 @@ on:
         description: '🏷️ Custom Kernel Name (e.g., MyKernel-v1.0)'
         required: false
         type: string
-      VERSION_SUFFIX:
-        description: '📌 Select Version Suffix Mode'
+      LOCALVERSION_AUTO:
+        description: '🔧 Enable Localversion Auto'
         required: true
-        default: 'none'
-        type: choice
-        options:
-          - none
-          - localversion_auto
-          - build-date
+        default: false
+        type: boolean
       DEFAULT_HOSTNAME:
         description: '💻 Kernel Hostname (e.g., xiaomi@redmi)'
         required: true
@@ -241,17 +237,16 @@ jobs:
           set_str CONFIG_DEFAULT_HOSTNAME "${{ inputs.DEFAULT_HOSTNAME }}"
           set_str CONFIG_LOCALVERSION "${{ env.KERNEL_NAME_STRING }}"
           
-          if [ "${{ inputs.VERSION_SUFFIX }}" == "localversion_auto" ]; then
-            echo "🔧 Enabling CONFIG_LOCALVERSION_AUTO..."
+          if [ "${{ inputs.LOCALVERSION_AUTO }}" == "true" ]; then
+            echo "🔧 Enabling CONFIG_LOCALVERSION_AUTO (clean mode)..."
             enable_config CONFIG_LOCALVERSION_AUTO
+            
+            if [ -d ".git" ]; then
+              git config --global --add safe.directory "$PWD"
+              git update-index --assume-unchanged $(git ls-files) || true
+            fi
           else
             disable_config CONFIG_LOCALVERSION_AUTO
-          fi
-
-          if [ "${{ inputs.VERSION_SUFFIX }}" == "build-date" ]; then
-            echo "📅 Appending build date to the kernel version..."
-            BUILD_DATE=$(date +'%Y%m%d')
-            sed -i 's/echo "$res"/echo "$res-'"$BUILD_DATE"'"/' scripts/setlocalversion
           fi
 
           disable_config CONFIG_KERNEL_GZIP
