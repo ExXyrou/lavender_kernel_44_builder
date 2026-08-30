@@ -18,7 +18,7 @@ on:
         default: false
         type: boolean
       LOCALVERSION:
-        description: '🏷️ Nama Kernel Kustom (misal: -MyKernel)'
+        description: '🏷️ Nama Kernel Kustom (misal: MyKernel)'
         required: false
         type: string
       LOCALVERSION_AUTO:
