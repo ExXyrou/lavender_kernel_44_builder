@@ -71,6 +71,20 @@ jobs:
           rm -rf "${{ env.KERNEL_DIR }}"
           git clone --depth=1 -b "${{ env.KERNEL_BRANCH }}" "${{ env.KERNEL_URL }}" "${{ env.KERNEL_DIR }}"
 
+      - name: 🔠 Configure Kernel Name String
+        working-directory: ${{ env.KERNEL_DIR }}
+        run: |
+          CLEAN_INPUT=$(echo "${{ inputs.LOCALVERSION }}" | sed 's/^-//')
+          
+          if [ -n "$CLEAN_INPUT" ]; then
+            FINAL_LOCAL="-${CLEAN_INPUT}"
+          else
+            FINAL_LOCAL=""
+          fi
+          
+          echo "✅ Kernel string set to: $FINAL_LOCAL"
+          echo "KERNEL_NAME_STRING=$FINAL_LOCAL" >> $GITHUB_ENV
+
       - name: 📖 Read Kernel Version
         working-directory: ${{ env.KERNEL_DIR }}
         run: |
@@ -153,7 +167,7 @@ jobs:
             CAM_TYPE="oldcam"
           fi
 
-          MESSAGE=$(printf '🛠️ <b>BUILD STARTED</b>\n\n📱 <b>Device:</b> <code>Lavender</code>\n🏷️ <b>Kernel Name:</b> <code>%s-%s</code>\n📷 <b>Build Type:</b> <code>%s</code>\n🦊 <b>KSU Injection:</b> <code>%s</code>\n🛠️ <b>Clang Version:</b> <code>AOSP Clang r383902</code>' "${{ env.KERNEL_VERSION }}" "${{ inputs.LOCALVERSION }}" "$CAM_TYPE" "${{ inputs.INJECT_KSU }}")
+          MESSAGE=$(printf '🛠️ <b>BUILD STARTED</b>\n\n📱 <b>Device:</b> <code>Lavender</code>\n🏷️ <b>Kernel Name:</b> <code>%s%s</code>\n📷 <b>Build Type:</b> <code>%s</code>\n🦊 <b>KSU Injection:</b> <code>%s</code>\n🛠️ <b>Clang Version:</b> <code>AOSP Clang r383902</code>' "${{ env.KERNEL_VERSION }}" "${{ env.KERNEL_NAME_STRING }}" "$CAM_TYPE" "${{ inputs.INJECT_KSU }}")
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_API }}/sendMessage" --data-urlencode chat_id="${{ secrets.CHAT_ID }}" --data-urlencode parse_mode="HTML" --data-urlencode text="$MESSAGE"
           
       - name: 📝 Apply Tweaks & Configs
@@ -167,22 +181,17 @@ jobs:
           set_str() { ./scripts/config --file "$OUT_DIR/.config" --set-str "$1" "$2"; }
 
           set_str CONFIG_DEFAULT_HOSTNAME "${{ inputs.DEFAULT_HOSTNAME }}"
-          
-          if [ -n "${{ inputs.LOCALVERSION }}" ]; then
-            echo "🏷️ Using custom name: ${{ inputs.LOCALVERSION }}"
-            set_str CONFIG_LOCALVERSION "${{ inputs.LOCALVERSION }}"
-          else
-            echo "🏷️ Custom name is empty. Keeping defconfig default."
-          fi
+          set_str CONFIG_LOCALVERSION "${{ env.KERNEL_NAME_STRING }}"
 
           if [ "${{ inputs.VERSION_SUFFIX }}" == "localversion_auto" ]; then
+            echo "🔧 Enabling CONFIG_LOCALVERSION_AUTO..."
             enable_config CONFIG_LOCALVERSION_AUTO
           else
             disable_config CONFIG_LOCALVERSION_AUTO
           fi
 
           if [ "${{ inputs.VERSION_SUFFIX }}" == "build-date" ]; then
-            echo "📅 Appending date to the end of kernel version..."
+            echo "📅 Appending build date to the kernel version..."
             BUILD_DATE=$(date +'%Y%m%d')
             sed -i 's/echo "$res"/echo "$res-'"$BUILD_DATE"'"/' scripts/setlocalversion
           fi
@@ -225,19 +234,15 @@ jobs:
           git clone --depth=1 https://github.com/ExXyrou/kernel_flashable AnyKernel3
           cp "$IMAGE" AnyKernel3/
           
-          FINAL_LOCALVER="${{ inputs.LOCALVERSION }}"
-          if [ -z "$FINAL_LOCALVER" ]; then
-            FINAL_LOCALVER=$(grep "^CONFIG_LOCALVERSION=" "$GITHUB_WORKSPACE/$KERNEL_DIR/$OUT_DIR/.config" | cut -d'"' -f2 | sed 's/^-//')
-          else
-            FINAL_LOCALVER=$(echo "$FINAL_LOCALVER" | sed 's/^-//')
-          fi
+          FINAL_LOCALVER="${{ env.KERNEL_NAME_STRING }}"
+          FINAL_LOCALVER=$(echo "$FINAL_LOCALVER" | sed 's/^-//')
           
           sed -i -E 's/^(kernel\.string=).*/\1'"$FINAL_LOCALVER"'/' AnyKernel3/anykernel.sh
           
           TIMESTAMP=$(date +'%Y%m%d')
           
           if [ -n "$FINAL_LOCALVER" ]; then
-            ZIP_NAME="lavender-${{ env.KERNEL_VERSION }}-${FINAL_LOCALVER}-${TIMESTAMP}.zip"
+            ZIP_NAME="lavender-${{ env.KERNEL_VERSION }}${{ env.KERNEL_NAME_STRING }}-${TIMESTAMP}.zip"
           else
             ZIP_NAME="lavender-${{ env.KERNEL_VERSION }}-${TIMESTAMP}.zip"
           fi
@@ -259,7 +264,7 @@ jobs:
             CAM_TYPE="oldcam"
           fi
 
-          MESSAGE=$(printf '✅ <b>BUILD SUCCESS</b>\n\n📱 <b>Device:</b> <code>Lavender</code>\n🏷️ <b>Kernel Name:</b> <code>%s-%s</code>\n📷 <b>Build Type:</b> <code>%s</code>\n🦊 <b>KSU Injection:</b> <code>%s</code>\n🛠️ <b>Clang Version:</b> <code>AOSP Clang r383902</code>\n⏱️ <b>Time Elapsed:</b> <code>%s</code>' "${{ env.KERNEL_VERSION }}" "${{ inputs.LOCALVERSION }}" "$CAM_TYPE" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
+          MESSAGE=$(printf '✅ <b>BUILD SUCCESS</b>\n\n📱 <b>Device:</b> <code>Lavender</code>\n🏷️ <b>Kernel Name:</b> <code>%s%s</code>\n📷 <b>Build Type:</b> <code>%s</code>\n🦊 <b>KSU Injection:</b> <code>%s</code>\n🛠️ <b>Clang Version:</b> <code>AOSP Clang r383902</code>\n⏱️ <b>Time Elapsed:</b> <code>%s</code>' "${{ env.KERNEL_VERSION }}" "${{ env.KERNEL_NAME_STRING }}" "$CAM_TYPE" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
           
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_API }}/sendDocument" \
             -F chat_id="${{ secrets.CHAT_ID }}" \
@@ -280,7 +285,7 @@ jobs:
             CAM_TYPE="oldcam"
           fi
 
-          MESSAGE=$(printf '❌ <b>BUILD FAILED</b>\n\n📱 <b>Device:</b> <code>Lavender</code>\n🏷️ <b>Kernel Name:</b> <code>%s-%s</code>\n📷 <b>Build Type:</b> <code>%s</code>\n🦊 <b>KSU Injection:</b> <code>%s</code>\n🛠️ <b>Clang Version:</b> <code>AOSP Clang r383902</code>\n⏱️ <b>Time Elapsed:</b> <code>%s</code>\n\n💥 <i>Check the build.log file above for error details.</i>' "${{ env.KERNEL_VERSION }}" "${{ inputs.LOCALVERSION }}" "$CAM_TYPE" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
+          MESSAGE=$(printf '❌ <b>BUILD FAILED</b>\n\n📱 <b>Device:</b> <code>Lavender</code>\n🏷️ <b>Kernel Name:</b> <code>%s%s</code>\n📷 <b>Build Type:</b> <code>%s</code>\n🦊 <b>KSU Injection:</b> <code>%s</code>\n🛠️ <b>Clang Version:</b> <code>AOSP Clang r383902</code>\n⏱️ <b>Time Elapsed:</b> <code>%s</code>\n\n💥 <i>Check the build.log file above for error details.</i>' "${{ env.KERNEL_VERSION }}" "${{ env.KERNEL_NAME_STRING }}" "$CAM_TYPE" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
           
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_API }}/sendDocument" \
             -F chat_id="${{ secrets.CHAT_ID }}" \
