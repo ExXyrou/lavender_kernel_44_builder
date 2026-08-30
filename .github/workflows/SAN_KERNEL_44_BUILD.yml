@@ -6,14 +6,19 @@ on:
       KERNEL_BRANCH:
         description: '🌿 Select Kernel Branch'
         required: true
-        default: 'plts'
+        default: 'PLTS'
         type: choice
         options:
-          - plts
+          - PLTS
           - st74
           - st78
+      DISPLAY_BRANCH_NAME:
+        description: '🏷️ Display Branch Name (e.g., PLTS)'
+        required: true
+        default: false
+        type: boolean
       LOCALVERSION:
-        description: '🏷️ Custom Kernel Name (e.g., -MyKernel-v1.0)'
+        description: '🏷️ Custom Kernel Name (e.g., -San-Kernel)'
         required: false
         type: string
       LOCALVERSION_AUTO:
@@ -72,6 +77,14 @@ jobs:
       - name: ⏱️ Record Build Start Time
         run: echo "BUILD_START_TIME=$(date +%s)" >> $GITHUB_ENV
 
+      - name: 🔠 Configure Kernel Name String
+        run: |
+          if [ "${{ inputs.DISPLAY_BRANCH_NAME }}" == "true" ]; then
+            echo "KERNEL_NAME_STRING=-${{ inputs.KERNEL_BRANCH }}${{ inputs.LOCALVERSION }}" >> $GITHUB_ENV
+          else
+            echo "KERNEL_NAME_STRING=${{ inputs.LOCALVERSION }}" >> $GITHUB_ENV
+          fi
+
       - name: 📦 Install Build Dependencies
         timeout-minutes: 10
         env:
@@ -107,7 +120,7 @@ jobs:
 
       - name: 📢 Notify Telegram - Build Started
         run: |
-          MESSAGE=$(printf '🛠️ <b>BUILD STARTED</b>\n\n📱 <b>Device:</b> <code>lavender</code>\n🏷️ <b>Kernel Name:</b> <code>4.4.302-%s</code>\n📳 <b>QTI Haptics Support:</b> <code>%s</code>\n🦊 <b>Built-in KernelSU:</b> <code>%s</code>\n🛠️ <b>Clang Version:</b> <code>ZyC Clang 15.0.7</code>' "${{ inputs.KERNEL_BRANCH }}${{ inputs.LOCALVERSION }}" "${{ inputs.QTI_HAPTICS }}" "${{ inputs.INJECT_KSU }}")
+          MESSAGE=$(printf '🛠️ <b>BUILD STARTED</b>\n\n📱 <b>Device:</b> <code>lavender</code>\n🏷️ <b>Kernel Name:</b> <code>4.4.302%s</code>\n📳 <b>QTI Haptics Support:</b> <code>%s</code>\n🦊 <b>Built-in KernelSU:</b> <code>%s</code>\n🛠️ <b>Clang Version:</b> <code>ZyC Clang 15.0.7</code>' "${{ env.KERNEL_NAME_STRING }}" "${{ inputs.QTI_HAPTICS }}" "${{ inputs.INJECT_KSU }}")
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_API }}/sendMessage" --data-urlencode chat_id="${{ secrets.CHAT_ID }}" --data-urlencode parse_mode="HTML" --data-urlencode text="$MESSAGE"
 
       - name: 📥 Clone Kernel Source
@@ -178,7 +191,8 @@ jobs:
           export PATH="$GITHUB_WORKSPACE/$CLANG_DIR/bin:$PATH"
           
           sed -i 's/CONFIG_DEFAULT_HOSTNAME=".*/CONFIG_DEFAULT_HOSTNAME="'"${{ inputs.DEFAULT_HOSTNAME }}"'"/' "$OUT_DIR/.config"
-          [ -n "${{ inputs.LOCALVERSION }}" ] && sed -i 's/CONFIG_LOCALVERSION=".*/CONFIG_LOCALVERSION="'"${{ inputs.LOCALVERSION }}"'"/' "$OUT_DIR/.config"
+          
+          [ -n "${{ env.KERNEL_NAME_STRING }}" ] && sed -i 's/CONFIG_LOCALVERSION=".*/CONFIG_LOCALVERSION="'"${{ env.KERNEL_NAME_STRING }}"'"/' "$OUT_DIR/.config"
 
           enable_config() { ./scripts/config --file "$OUT_DIR/.config" --enable "$1"; }
           disable_config() { ./scripts/config --file "$OUT_DIR/.config" --disable "$1"; }
@@ -209,13 +223,6 @@ jobs:
           enable_config CONFIG_CPU_FREQ_GOV_SCHEDUTIL
           set_str CONFIG_DEFAULT_GOVERNOR "schedutil"
           disable_config CONFIG_SCHED_AUTOGROUP
-
-          enable_config CONFIG_NET_SCH_FQ
-          enable_config CONFIG_NET_SCH_FQ_CODEL
-          enable_config CONFIG_TCP_CONG_ADVANCED
-          enable_config CONFIG_TCP_CONG_BBR
-          set_str CONFIG_DEFAULT_TCP_CONG "bbr"
-          set_str CONFIG_DEFAULT_NET_SCH "fq_codel"
 
           enable_config CONFIG_ZRAM
           enable_config CONFIG_ZRAM_LZ4_COMPRESS
@@ -326,12 +333,14 @@ jobs:
             fi
           fi
           
-          FINAL_LOCALVER="${{ inputs.LOCALVERSION }}"
-          [ -z "$FINAL_LOCALVER" ] && FINAL_LOCALVER=$(grep "^CONFIG_LOCALVERSION=" "$GITHUB_WORKSPACE/$KERNEL_DIR/$OUT_DIR/.config" | cut -d'"' -f2) || FINAL_LOCALVER=$(echo "$FINAL_LOCALVER" | sed 's/^-//')
+          # Inject nama flashable AnyKernel menggunakan string yang sudah disesuaikan
+          FINAL_LOCALVER="${{ env.KERNEL_NAME_STRING }}"
+          FINAL_LOCALVER=$(echo "$FINAL_LOCALVER" | sed 's/^-//')
           sed -i -E 's/^(kernel\.string=).*/\1'"$FINAL_LOCALVER"'/' anykernel.sh
           
           TIMESTAMP=$(date +'%Y%m%d')
-          ZIP_NAME="lavender-4.4.302-${{ inputs.KERNEL_BRANCH }}${{ inputs.LOCALVERSION }}-${TIMESTAMP}.zip"
+          # Menyesuaikan penamaan ZIP
+          ZIP_NAME="lavender-4.4.302${{ env.KERNEL_NAME_STRING }}-${TIMESTAMP}.zip"
           zip -r9 "$ZIP_NAME" * -x ".git/*"
           
           echo "zip_path=$GITHUB_WORKSPACE/AnyKernel3/$ZIP_NAME" >> "$GITHUB_OUTPUT"
@@ -344,7 +353,7 @@ jobs:
           DURATION=$((END_TIME - ${{ env.BUILD_START_TIME }}))
           DURATION_STR="$((DURATION / 60))m $((DURATION % 60))s"
 
-          MESSAGE=$(printf '✅ <b>BUILD SUCCESS</b>\n\n📱 <b>Device:</b> <code>lavender</code>\n🏷️ <b>Kernel Name:</b> <code>4.4.302-%s</code>\n📳 <b>QTI Haptics Support:</b> <code>%s</code>\n🦊 <b>Built-in KernelSU:</b> <code>%s</code>\n🛠️ <b>Clang Version:</b> <code>ZyC Clang 15.0.7</code>\n⏱️ <b>Time Elapsed:</b> <code>%s</code>' "${{ inputs.KERNEL_BRANCH }}${{ inputs.LOCALVERSION }}" "${{ inputs.QTI_HAPTICS }}" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
+          MESSAGE=$(printf '✅ <b>BUILD SUCCESS</b>\n\n📱 <b>Device:</b> <code>lavender</code>\n🏷️ <b>Kernel Name:</b> <code>4.4.302%s</code>\n📳 <b>QTI Haptics Support:</b> <code>%s</code>\n🦊 <b>Built-in KernelSU:</b> <code>%s</code>\n🛠️ <b>Clang Version:</b> <code>ZyC Clang 15.0.7</code>\n⏱️ <b>Time Elapsed:</b> <code>%s</code>' "${{ env.KERNEL_NAME_STRING }}" "${{ inputs.QTI_HAPTICS }}" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
           
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_API }}/sendDocument" \
             -F chat_id="${{ secrets.CHAT_ID }}" \
@@ -359,7 +368,7 @@ jobs:
           DURATION=$((END_TIME - ${{ env.BUILD_START_TIME }}))
           DURATION_STR="$((DURATION / 60))m $((DURATION % 60))s"
 
-          MESSAGE=$(printf '❌ <b>BUILD FAILED</b>\n\n📱 <b>Device:</b> <code>lavender</code>\n🏷️ <b>Kernel Name:</b> <code>4.4.302-%s</code>\n📳 <b>QTI Haptics Support:</b> <code>%s</code>\n🦊 <b>Built-in KernelSU:</b> <code>%s</code>\n🛠️ <b>Clang Version:</b> <code>ZyC Clang 15.0.7</code>\n⏱️ <b>Time Elapsed:</b> <code>%s</code>\n\n💥 <i>Please check the build.log file above.</i>' "${{ inputs.KERNEL_BRANCH }}${{ inputs.LOCALVERSION }}" "${{ inputs.QTI_HAPTICS }}" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
+          MESSAGE=$(printf '❌ <b>BUILD FAILED</b>\n\n📱 <b>Device:</b> <code>lavender</code>\n🏷️ <b>Kernel Name:</b> <code>4.4.302%s</code>\n📳 <b>QTI Haptics Support:</b> <code>%s</code>\n🦊 <b>Built-in KernelSU:</b> <code>%s</code>\n🛠️ <b>Clang Version:</b> <code>ZyC Clang 15.0.7</code>\n⏱️ <b>Time Elapsed:</b> <code>%s</code>\n\n💥 <i>Please check the build.log file above.</i>' "${{ env.KERNEL_NAME_STRING }}" "${{ inputs.QTI_HAPTICS }}" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
           
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_API }}/sendDocument" \
             -F chat_id="${{ secrets.CHAT_ID }}" \
