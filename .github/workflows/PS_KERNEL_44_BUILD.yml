@@ -4,41 +4,41 @@ on:
   workflow_dispatch:
     inputs:
       LOCALVERSION:
-        description: '🏷️ Nama Kernel Kustom (misal: MyKernel-v1.0)'
+        description: '🏷️ Custom Kernel Name (e.g., MyKernel-v1.0)'
         required: false
         type: string
       LOCALVERSION_AUTO:
-        description: '❓ Aktifkan Auto Local Version'
+        description: '❓ Enable Auto Local Version'
         required: true
         default: false
         type: boolean
       APPEND_BUILD_DATE:
-        description: '📅 Tambah Tanggal Build'
+        description: '📅 Append Build Date to Version'
         required: true
         default: false
         type: boolean
       DEFAULT_HOSTNAME:
-        description: '💻 Hostname Kernel (misal: xiaomi@redmi)'
+        description: '💻 Kernel Hostname (e.g., xiaomi@redmi)'
         required: true
         default: xiaomi@redmi
         type: string
       BUILD_USER:
-        description: '👤 Username Build (misal: xiaomi)'
+        description: '👤 Build Username (e.g., xiaomi)'
         required: true
         default: xiaomi
         type: string
       BUILD_HOST:
-        description: '🖥️ Hostname Build (misal: redmi)'
+        description: '🖥️ Build Hostname (e.g., redmi)'
         required: true
         default: redmi
         type: string
       BUILD_NEWCAM:
-        description: '📷 Gunakan Versi Newcam'
+        description: '📷 Use Newcam Build'
         required: true
         default: false
         type: boolean
       INJECT_KSU:
-        description: '🦊 Sisipkan KernelSU'
+        description: '🦊 Inject KernelSU'
         required: true
         default: false
         type: boolean
@@ -61,18 +61,18 @@ jobs:
       contents: write
 
     steps:
-      - name: 🔄 Checkout Repositori
+      - name: 🔄 Checkout Repository
         uses: actions/checkout@v4
 
-      - name: ⏱️ Catat Waktu Mulai
+      - name: ⏱️ Record Build Start Time
         run: echo "BUILD_START_TIME=$(date +%s)" >> $GITHUB_ENV
         
-      - name: 📥 Clone Source Kernel
+      - name: 📥 Clone Kernel Source
         run: |
           rm -rf "${{ env.KERNEL_DIR }}"
           git clone --depth=1 -b "${{ env.KERNEL_BRANCH }}" "${{ env.KERNEL_URL }}" "${{ env.KERNEL_DIR }}"
 
-      - name: 📖 Baca Versi Kernel
+      - name: 📖 Read Kernel Version
         working-directory: ${{ env.KERNEL_DIR }}
         run: |
           KVER_MAJOR=$(grep -m1 '^VERSION =' Makefile | tr -d ' ' | cut -d'=' -f2)
@@ -80,21 +80,21 @@ jobs:
           KVER_SUB=$(grep -m1 '^SUBLEVEL =' Makefile | tr -d ' ' | cut -d'=' -f2)
           FULL_KVER="${KVER_MAJOR}.${KVER_PATCH}.${KVER_SUB}"
           echo "KERNEL_VERSION=$FULL_KVER" >> $GITHUB_ENV
-          echo "✅ Versi Kernel Terdeteksi: $FULL_KVER"
+          echo "✅ Detected Kernel Version: $FULL_KVER"
 
-      - name: 📦 Install Bahan Build
+      - name: 📦 Install Build Dependencies
         timeout-minutes: 10
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
           while sudo fuser /var/lib/dpkg/lock-frontend >/dev/null 2>&1; do
-            echo "Menunggu proses apt selesai..."
+            echo "Waiting for apt process to finish..."
             sleep 5
           done
 
           for i in 1 2 3; do
             sudo apt-get update -yq && break
-            echo "Gagal update apt, percobaan ke-$i, mengulang..."
+            echo "apt update failed, attempt $i, retrying..."
             sleep 10
           done
 
@@ -102,12 +102,12 @@ jobs:
             -o Acquire::Retries=3 \
             bc bison libssl-dev libelf-dev build-essential python3 python3-pip curl git zip unzip wget ccache libncurses-dev rsync gcc-aarch64-linux-gnu binutils-aarch64-linux-gnu gcc-arm-linux-gnueabi binutils-arm-linux-gnueabi
         
-      - name: ⚡ Siapkan Cache Compiler
+      - name: ⚡ Setup Compiler Cache
         run: |
           ccache --max-size=2G
           echo "CCACHE_DIR=$HOME/.ccache" >> $GITHUB_ENV
 
-      - name: 💾 Pulihkan Cache Compiler
+      - name: 💾 Restore Compiler Cache
         uses: actions/cache@v4
         with:
           path: ~/.ccache
@@ -115,12 +115,12 @@ jobs:
           restore-keys: |
             ccache-hmp-${{ env.DEFCONFIG }}-
 
-      - name: 🦊 Injeksi KernelSU
+      - name: 🦊 Inject KernelSU
         if: ${{ inputs.INJECT_KSU == true }}
         working-directory: ${{ env.KERNEL_DIR }}
         run: curl -LSs "https://raw.githubusercontent.com/backslashxx/KernelSU/refs/heads/master/kernel/setup.sh" | bash -s master
 
-      - name: 🧰 Pulihkan Cache AOSP Clang
+      - name: 🧰 Restore AOSP Clang Cache
         id: clang-cache
         uses: actions/cache@v4
         with:
@@ -134,24 +134,30 @@ jobs:
           curl -LSs "https://android.googlesource.com/platform/prebuilts/clang/host/linux-x86/+archive/android11-release/clang-r383902.tar.gz" -o aosp_clang.archive
           tar -xf aosp_clang.archive || unzip aosp_clang.archive && rm -f aosp_clang.archive
 
-      - name: 🛠️ Perbaiki Error Resource
+      - name: 🛠️ Fix Resource Errors
         working-directory: ${{ env.KERNEL_DIR }}
         run: |
           [ -f scripts/dtc/dtc-parser.tab.c ] && sed -i 's/^YYLTYPE yylloc;/extern YYLTYPE yylloc;/' scripts/dtc/dtc-parser.tab.c
           [ -f scripts/dtc/dtc-lexer.lex.c_shipped ] && sed -i 's/^YYLTYPE yylloc;/extern YYLTYPE yylloc;/' scripts/dtc/dtc-lexer.lex.c_shipped
 
-      - name: ⚙️ Buat Defconfig
+      - name: ⚙️ Generate Defconfig
         working-directory: ${{ env.KERNEL_DIR }}
         run: |
           export PATH="$GITHUB_WORKSPACE/$CLANG_DIR/bin:$PATH"
           make O=$OUT_DIR ARCH=${{ env.ARCH }} CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- ${{ env.DEFCONFIG }}
 
-      - name: 📢 Info Telegram - Build Dimulai
+      - name: 📢 Telegram Notification - Build Started
         run: |
-          MESSAGE=$(printf '🛠️ <b>PROSES BUILD DIMULAI</b>\n\n📱 <b>Perangkat:</b> <code>Lavender</code>\n🏷️ <b>Nama Kernel:</b> <code>%s-%s</code>\n📅 <b>Tambah Tanggal:</b> <code>%s</code>\n📷 <b>Versi Newcam:</b> <code>%s</code>\n🦊 <b>Injeksi KSU:</b> <code>%s</code>\n🛠️ <b>Versi Clang:</b> <code>AOSP Clang r383902</code>' "${{ env.KERNEL_VERSION }}" "${{ inputs.LOCALVERSION }}" "${{ inputs.APPEND_BUILD_DATE }}" "${{ inputs.BUILD_NEWCAM }}" "${{ inputs.INJECT_KSU }}")
+          if [ "${{ inputs.BUILD_NEWCAM }}" == "true" ]; then
+            CAM_TYPE="newcam"
+          else
+            CAM_TYPE="oldcam"
+          fi
+
+          MESSAGE=$(printf '🛠️ <b>BUILD STARTED</b>\n\n📱 <b>Device:</b> <code>Lavender</code>\n🏷️ <b>Kernel Name:</b> <code>%s-%s</code>\n📷 <b>Build Type:</b> <code>%s</code>\n🦊 <b>KSU Injection:</b> <code>%s</code>\n🛠️ <b>Clang Version:</b> <code>AOSP Clang r383902</code>' "${{ env.KERNEL_VERSION }}" "${{ inputs.LOCALVERSION }}" "$CAM_TYPE" "${{ inputs.INJECT_KSU }}")
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_API }}/sendMessage" --data-urlencode chat_id="${{ secrets.CHAT_ID }}" --data-urlencode parse_mode="HTML" --data-urlencode text="$MESSAGE"
           
-      - name: 📝 Konfigurasi Config
+      - name: 📝 Apply Tweaks & Configs
         working-directory: ${{ env.KERNEL_DIR }}
         run: |
           export PATH="$GITHUB_WORKSPACE/$CLANG_DIR/bin:$PATH"
@@ -164,10 +170,10 @@ jobs:
           set_str CONFIG_DEFAULT_HOSTNAME "${{ inputs.DEFAULT_HOSTNAME }}"
           
           if [ -n "${{ inputs.LOCALVERSION }}" ]; then
-            echo "🏷️ Pakai nama kustom: ${{ inputs.LOCALVERSION }}"
+            echo "🏷️ Using custom name: ${{ inputs.LOCALVERSION }}"
             set_str CONFIG_LOCALVERSION "${{ inputs.LOCALVERSION }}"
           else
-            echo "🏷️ Nama kustom kosong. Pakai bawaan defconfig."
+            echo "🏷️ Custom name is empty. Keeping defconfig default."
           fi
 
           if [ "${{ inputs.LOCALVERSION_AUTO }}" == "true" ]; then
@@ -177,25 +183,25 @@ jobs:
           fi
 
           if [ "${{ inputs.APPEND_BUILD_DATE }}" == "true" ]; then
-            echo "📅 Menambahkan tanggal di akhir versi kernel..."
+            echo "📅 Appending date to the end of kernel version..."
             BUILD_DATE=$(date +'%Y%m%d')
             sed -i 's/echo "$res"/echo "$res-'"$BUILD_DATE"'"/' scripts/setlocalversion
           fi
 
           if [ "${{ inputs.BUILD_NEWCAM }}" == "true" ]; then
-            echo "📷 Mengaktifkan dukungan Newcam..."
+            echo "📷 Enabling Newcam support..."
             enable_config CONFIG_XIAOMI_NEW_CAMERA_BLOBS
           fi
 
           if [ "${{ inputs.INJECT_KSU }}" == "true" ]; then
-            echo "🦊 Memasang konfigurasi KernelSU..."
+            echo "🦊 Applying KernelSU configuration..."
             enable_config CONFIG_KSU
             enable_config CONFIG_KSU_TAMPER_SYSCALL_TABLE
           fi
 
           make O=$OUT_DIR ARCH=${{ env.ARCH }} CC=clang olddefconfig
 
-      - name: 🏗️ Mulai Build Kernel
+      - name: 🏗️ Start Kernel Build
         working-directory: ${{ env.KERNEL_DIR }}
         run: |
           export PATH="/usr/lib/ccache:$GITHUB_WORKSPACE/$CLANG_DIR/bin:$PATH"
@@ -205,12 +211,12 @@ jobs:
           make -j$(nproc --all) O=$OUT_DIR ARCH=${{ env.ARCH }} CC="ccache clang" HOSTCC="ccache clang" HOSTCXX="ccache clang++" CLANG_TRIPLE=aarch64-linux-gnu- CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- KCFLAGS="-Wno-address -Wno-implicit-function-declaration" Image.gz-dtb 2>&1 | tee build.log
 
           if [ ! -f "$OUT_DIR/arch/arm64/boot/Image.gz-dtb" ]; then
-            echo "❌ File Kernel (Image.gz-dtb) tidak ditemukan!"
+            echo "❌ Kernel file (Image.gz-dtb) not found!"
             exit 1
           fi
-          echo "✅ File Kernel berhasil dibuat."
+          echo "✅ Kernel file successfully created."
 
-      - name: 🔍 Buat File Zip Kernel
+      - name: 🔍 Create Kernel Zip
         id: img
         working-directory: ${{ env.KERNEL_DIR }}
         run: |
@@ -241,14 +247,20 @@ jobs:
           echo "zip_path=$GITHUB_WORKSPACE/AnyKernel3/$ZIP_NAME" >> "$GITHUB_OUTPUT"
           echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
 
-      - name: ✅ Info Telegram - Build Berhasil
+      - name: ✅ Telegram Notification - Build Success
         if: success()
         run: |
           END_TIME=$(date +%s)
           DURATION=$((END_TIME - ${{ env.BUILD_START_TIME }}))
           DURATION_STR="$((DURATION / 60))m $((DURATION % 60))s"
 
-          MESSAGE=$(printf '✅ <b>BUILD BERHASIL</b>\n\n📱 <b>Perangkat:</b> <code>Lavender</code>\n🏷️ <b>Nama Kernel:</b> <code>%s-%s</code>\n📅 <b>Tambah Tanggal:</b> <code>%s</code>\n📷 <b>Versi Newcam:</b> <code>%s</code>\n🦊 <b>Injeksi KSU:</b> <code>%s</code>\n🛠️ <b>Versi Clang:</b> <code>AOSP Clang r383902</code>\n⏱️ <b>Waktu Proses:</b> <code>%s</code>' "${{ env.KERNEL_VERSION }}" "${{ inputs.LOCALVERSION }}" "${{ inputs.APPEND_BUILD_DATE }}" "${{ inputs.BUILD_NEWCAM }}" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
+          if [ "${{ inputs.BUILD_NEWCAM }}" == "true" ]; then
+            CAM_TYPE="newcam"
+          else
+            CAM_TYPE="oldcam"
+          fi
+
+          MESSAGE=$(printf '✅ <b>BUILD SUCCESS</b>\n\n📱 <b>Device:</b> <code>Lavender</code>\n🏷️ <b>Kernel Name:</b> <code>%s-%s</code>\n📷 <b>Build Type:</b> <code>%s</code>\n🦊 <b>KSU Injection:</b> <code>%s</code>\n🛠️ <b>Clang Version:</b> <code>AOSP Clang r383902</code>\n⏱️ <b>Time Elapsed:</b> <code>%s</code>' "${{ env.KERNEL_VERSION }}" "${{ inputs.LOCALVERSION }}" "$CAM_TYPE" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
           
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_API }}/sendDocument" \
             -F chat_id="${{ secrets.CHAT_ID }}" \
@@ -256,14 +268,20 @@ jobs:
             -F parse_mode="HTML" \
             -F caption="$MESSAGE"
 
-      - name: ❌ Info Telegram - Build Gagal
+      - name: ❌ Telegram Notification - Build Failed
         if: failure()
         run: |
           END_TIME=$(date +%s)
           DURATION=$((END_TIME - ${{ env.BUILD_START_TIME }}))
           DURATION_STR="$((DURATION / 60))m $((DURATION % 60))s"
 
-          MESSAGE=$(printf '❌ <b>BUILD GAGAL</b>\n\n📱 <b>Perangkat:</b> <code>Lavender</code>\n🏷️ <b>Nama Kernel:</b> <code>%s-%s</code>\n📅 <b>Tambah Tanggal:</b> <code>%s</code>\n📷 <b>Versi Newcam:</b> <code>%s</code>\n🦊 <b>Injeksi KSU:</b> <code>%s</code>\n🛠️ <b>Versi Clang:</b> <code>AOSP Clang r383902</code>\n⏱️ <b>Waktu Proses:</b> <code>%s</code>\n\n💥 <i>Cek file build.log di atas untuk melihat detail error.</i>' "${{ env.KERNEL_VERSION }}" "${{ inputs.LOCALVERSION }}" "${{ inputs.APPEND_BUILD_DATE }}" "${{ inputs.BUILD_NEWCAM }}" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
+          if [ "${{ inputs.BUILD_NEWCAM }}" == "true" ]; then
+            CAM_TYPE="newcam"
+          else
+            CAM_TYPE="oldcam"
+          fi
+
+          MESSAGE=$(printf '❌ <b>BUILD FAILED</b>\n\n📱 <b>Device:</b> <code>Lavender</code>\n🏷️ <b>Kernel Name:</b> <code>%s-%s</code>\n📷 <b>Build Type:</b> <code>%s</code>\n🦊 <b>KSU Injection:</b> <code>%s</code>\n🛠️ <b>Clang Version:</b> <code>AOSP Clang r383902</code>\n⏱️ <b>Time Elapsed:</b> <code>%s</code>\n\n💥 <i>Check the build.log file above for error details.</i>' "${{ env.KERNEL_VERSION }}" "${{ inputs.LOCALVERSION }}" "$CAM_TYPE" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
           
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_API }}/sendDocument" \
             -F chat_id="${{ secrets.CHAT_ID }}" \
