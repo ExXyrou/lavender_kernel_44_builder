@@ -13,7 +13,7 @@ on:
           - st74
           - st78
       DISPLAY_BRANCH_NAME:
-        description: '🏷️ Display Branch Name (e.g., PLTS)'
+        description: '🏷️ Display Branch Name'
         required: true
         default: false
         type: boolean
@@ -29,14 +29,17 @@ on:
       DEFAULT_HOSTNAME:
         description: '💻 Kernel Hostname (e.g., xiaomi@redmi)'
         required: true
+        default: xiaomi@redmi
         type: string
       BUILD_USER:
         description: '👤 Build Username (e.g., xiaomi)'
         required: true
+        default: xiaomi
         type: string
       BUILD_HOST:
         description: '🖥️ Build Hostname (e.g., redmi)'
         required: true
+        default: redmi
         type: string
       QTI_HAPTICS:
         description: '📳 Include QTI Haptics support'
