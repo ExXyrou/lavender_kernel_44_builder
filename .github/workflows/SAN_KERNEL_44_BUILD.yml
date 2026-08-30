@@ -83,7 +83,7 @@ jobs:
       - name: 🔠 Configure Kernel Name String
         run: |
           if [ "${{ inputs.DISPLAY_BRANCH_NAME }}" == "true" ]; then
-            echo "KERNEL_NAME_STRING=-${{ inputs.KERNEL_BRANCH }}${{ inputs.LOCALVERSION }}" >> $GITHUB_ENV
+            echo "KERNEL_NAME_STRING=-${{ inputs.KERNEL_BRANCH }}-${{ inputs.LOCALVERSION }}" >> $GITHUB_ENV
           else
             echo "KERNEL_NAME_STRING=${{ inputs.LOCALVERSION }}" >> $GITHUB_ENV
           fi
