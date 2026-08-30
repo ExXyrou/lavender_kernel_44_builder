@@ -15,14 +15,17 @@ on:
       DEFAULT_HOSTNAME:
         description: '💻 Kernel Hostname (e.g., xiaomi@redmi)'
         required: true
+        default: xiaomi@redmi
         type: string
       BUILD_USER:
         description: '👤 Build Username (e.g., xiaomi)'
         required: true
+        default: xiaomi
         type: string
       BUILD_HOST:
         description: '🖥️ Build Hostname (e.g., redmi)'
         required: true
+        default: redmi
         type: string
       BUILD_NEWCAM:
         description: '📷 Switch to Newcam Build'
