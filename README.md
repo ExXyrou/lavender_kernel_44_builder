@@ -1,57 +1,47 @@
-# 🛠️ Lavender Kernel Build Hub
+# 🛠️ Xiaomi Redmi Note 7 (Lavender) Kernel Build Workflows
 
-Welcome to the automated CI/CD build system for **Xiaomi Redmi Note 7 (lavender)** kernels! This repository utilizes GitHub Actions to compile custom Linux kernels smoothly, automatically package them into flashable zip files via AnyKernel3, and send real-time status updates straight to Telegram.
-
----
-
-## 🚀 Available Workflows
-
-We currently maintain two primary custom kernel build workflows, each utilizing specialized toolchains, configurations, and features tailored for the best user experience.
-
-### 1. Predator Strombreaker Kernel (`4.4`)
-* **Source Repository:** `predator_strombreaker_kernel` (Branch: `oldcam`)
-* **Toolchain:** AOSP Clang (`r383902`)
-* **Compression Format:** GZIP (`Image.gz` / `Image.gz-dtb`)
-* **Overview:** A finely-tuned performance kernel built for stability and everyday multitasking responsiveness on Lavender.
-
-### 2. San Kernel (`4.4`)
-* **Source Repository:** `san_kernel` (Branch: `oldcam`)
-* **Toolchain:** ZyC Clang (`15.0.7`)
-* **Compression Format:** XZ (`Image.xz` / `Image.xz-dtb`)
-* **Overview:** Features advanced power-efficient and gaming configurations, complete with optional **QTI Haptics** support for enhanced tactile feedback.
+Automated GitHub Actions workflows to compile custom kernels for **Xiaomi Redmi Note 7 (Lavender)** using **AnyKernel3** flashable zip packages and automated **Telegram notifications**.
 
 ---
 
-## ⚙️ Workflow Inputs & Configuration
+## 1. 🛠️ Predator Stormbreaker Kernel 4.4 (`predator_strombreaker.yml`)
 
-Both workflows share flexible `workflow_dispatch` triggers, allowing you to customize the build right from the GitHub Actions tab:
+A streamlined workflow designed to compile the Predator Stormbreaker Kernel variant using AOSP Clang.
 
-| Input Parameter | Type | Default | Description |
-| :--- | :---: | :---: | :--- |
-| `LOCALVERSION` | String | *None* | Custom suffix name for your kernel (e.g., `-MyCustomKernel-v1.0`). |
-| `LOCALVERSION_AUTO` | Boolean | `false` | Automatically appends local version control indicators if enabled. |
-| `DEFAULT_HOSTNAME` | String | *Required* | Network hostname assigned inside the kernel (e.g., `xiaomi@redmi`). |
-| `BUILD_USER` | String | *Required* | The username displayed in kernel compilation details (e.g., `xiaomi`). |
-| `BUILD_HOST` | String | *Required* | The hostname displayed during compilation (e.g., `redmi`). |
-| `QTI_HAPTICS` *(San Only)* | Boolean | `false` | Toggles specialized QTI haptics support driver compilation. |
-| `APPLY_TWEAKS` | Boolean | `false` | Injects optimized performance, battery, and gaming tweaks (such as custom CPU governors, I/O schedulers, and BBR congestion control). |
-| `INJECT_KSU` | Boolean | `false` | Seamlessly integrates **KernelSU** into the source before compilation. |
+### Features & Inputs
+* **`LOCALVERSION`**: Custom kernel name suffix (e.g., `MyKernel-v1.0`).
+* **`VERSION_SUFFIX`**: Choose additional suffix mode (`none`, `localversion_auto`, or `build-date`).
+* **`DEFAULT_HOSTNAME` / `BUILD_USER` / `BUILD_HOST`**: Custom compiler host and user identification settings.
+* **`BUILD_NEWCAM`**: Toggle between `newcam` and `oldcam` build types.
+* **`INJECT_KSU`**: Optional **KernelSU** integration (`true`/`false`).
 
 ---
 
-## 📦 Features & Highlights
+## 2. 🛠️ San Kernel 4.4 (`san_kernel.yml`)
 
-* **⚡ Ccache Integration:** Caches previously compiled object files to drastically reduce subsequent build times.
-* **🦊 KernelSU Ready:** Built-in option to automatically fetch and patch the latest KernelSU framework sources.
-* **🚀 Smart Tweaks:** One-click application of advanced CPU boosting, custom I/O schedulers (`Kyber`/`BFQ`), and network optimizations (`BBR`).
-* **🤖 Telegram Bot Notifications:** Automatically sends an alert when a build starts, and attaches either the flashable zip on **Success** or the error log (`build.log`) on **Failure**.
+A feature-rich workflow for compiling San Kernel with support for multiple branches, advanced compression (`.xz`), and haptics control.
+
+### Features & Inputs
+* **`KERNEL_BRANCH`**: Select the target source branch (`PLTS`, `st74`, or `st78`).
+* **`DISPLAY_BRANCH_NAME`**: Toggle whether to append the branch name to the final kernel string.
+* **`LOCALVERSION`**: Custom kernel name string.
+* **`VERSION_SUFFIX`**: Choose version naming suffix (`none`, `localversion_auto`, or `build-date`).
+* **`QTI_HAPTICS`**: Include or exclude QTI Haptics support.
+* **`BUILD_NEWCAM`**: Toggle camera blob configurations.
+* **`INJECT_KSU`**: Optional **KernelSU** injection (`true`/`false`).
 
 ---
 
-## 🚀 How to Trigger a Build
+## ⚙️ Required Repository Secrets
 
-1. Navigate to the **Actions** tab in your GitHub repository.
-2. Select either **🛠️ PREDATOR STROMBREAKER KERNEL 4.4 BUILD** or **🛠️ SAN KERNEL 4.4 BUILD** from the left sidebar.
-3. Click the **Run workflow** dropdown button.
-4. Fill in your desired configuration inputs (custom name, tweaks, KernelSU injection, etc.) and click **Run workflow**.
-5. Wait for the process to finish, and grab your zip file directly from your connected Telegram chat!
+To ensure build notifications and zip file delivery work properly via Telegram, make sure to add the following secrets in your GitHub Repository settings (`Settings > Secrets and variables > Actions`):
+
+* `BOT_API`: Your Telegram Bot Token.
+* `CHAT_ID`: Your Telegram Chat ID or Channel ID.
+
+---
+
+## 🚀 How to Run
+1. Go to the **Actions** tab in your GitHub repository.
+2. Select either **🛠️ PREDATOR STORMBREAKER KERNEL 4.4** or **🛠️ SAN KERNEL 4.4** from the left sidebar.
+3. Click **Run workflow**, adjust your preferred inputs, and click **Run workflow** again to start building.
