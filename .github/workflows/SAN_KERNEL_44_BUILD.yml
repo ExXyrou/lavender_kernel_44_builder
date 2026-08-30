@@ -21,16 +21,15 @@ on:
         description: '🏷️ Custom Kernel Name (e.g., MyKernel-v1.0)'
         required: false
         type: string
-      LOCALVERSION_AUTO:
-        description: '❓ Enable Auto Local Version'
+      VERSION_SUFFIX:
+        description: '📌 Select Version Suffix Mode'
         required: true
-        default: false
-        type: boolean
-      APPEND_BUILD_DATE:
-        description: '📅 Append Build Date to Version'
-        required: true
-        default: false
-        type: boolean
+        default: 'none'
+        type: choice
+        options:
+          - none
+          - localversion_auto
+          - build-date
       DEFAULT_HOSTNAME:
         description: '💻 Kernel Hostname (e.g., xiaomi@redmi)'
         required: true
@@ -246,13 +245,14 @@ jobs:
           
           set_str CONFIG_LOCALVERSION "${{ env.KERNEL_NAME_STRING }}"
           
-          if [ "${{ inputs.LOCALVERSION_AUTO }}" == "true" ]; then
+          # Handle VERSION_SUFFIX logic
+          if [ "${{ inputs.VERSION_SUFFIX }}" == "localversion_auto" ]; then
             enable_config CONFIG_LOCALVERSION_AUTO
           else
             disable_config CONFIG_LOCALVERSION_AUTO
           fi
 
-          if [ "${{ inputs.APPEND_BUILD_DATE }}" == "true" ]; then
+          if [ "${{ inputs.VERSION_SUFFIX }}" == "build-date" ]; then
             echo "📅 Appending date to the end of kernel version..."
             BUILD_DATE=$(date +'%Y%m%d')
             sed -i 's/echo "$res"/echo "$res-'"$BUILD_DATE"'"/' scripts/setlocalversion
