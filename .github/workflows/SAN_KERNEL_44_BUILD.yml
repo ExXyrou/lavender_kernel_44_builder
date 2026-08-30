@@ -92,15 +92,12 @@ jobs:
       - name: 🔠 Configure Kernel Name String
         working-directory: ${{ env.KERNEL_DIR }}
         run: |
-          DEFAULT_LOCAL=$(grep -oP '(?<=^CONFIG_LOCALVERSION=")[^"]*' "arch/${{ env.ARCH }}/configs/${{ env.DEFCONFIG }}" || echo "")
-          DEFAULT_LOCAL=$(echo "$DEFAULT_LOCAL" | sed 's/^-//')
-          
           CLEAN_INPUT=$(echo "${{ inputs.LOCALVERSION }}" | sed 's/^-//')
           
           if [ -n "$CLEAN_INPUT" ]; then
             BASE_NAME="$CLEAN_INPUT"
           else
-            BASE_NAME="$DEFAULT_LOCAL"
+            BASE_NAME=""
           fi
           
           if [ "${{ inputs.DISPLAY_BRANCH_NAME }}" == "true" ]; then
@@ -242,18 +239,17 @@ jobs:
           set_str() { ./scripts/config --file "$OUT_DIR/.config" --set-str "$1" "$2"; }
           
           set_str CONFIG_DEFAULT_HOSTNAME "${{ inputs.DEFAULT_HOSTNAME }}"
-          
           set_str CONFIG_LOCALVERSION "${{ env.KERNEL_NAME_STRING }}"
           
-          # Handle VERSION_SUFFIX logic
           if [ "${{ inputs.VERSION_SUFFIX }}" == "localversion_auto" ]; then
+            echo "🔧 Enabling CONFIG_LOCALVERSION_AUTO..."
             enable_config CONFIG_LOCALVERSION_AUTO
           else
             disable_config CONFIG_LOCALVERSION_AUTO
           fi
 
           if [ "${{ inputs.VERSION_SUFFIX }}" == "build-date" ]; then
-            echo "📅 Appending date to the end of kernel version..."
+            echo "📅 Appending build date to the kernel version..."
             BUILD_DATE=$(date +'%Y%m%d')
             sed -i 's/echo "$res"/echo "$res-'"$BUILD_DATE"'"/' scripts/setlocalversion
           fi
