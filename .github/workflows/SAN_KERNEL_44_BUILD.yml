@@ -331,7 +331,7 @@ jobs:
           sed -i -E 's/^(kernel\.string=).*/\1'"$FINAL_LOCALVER"'/' anykernel.sh
           
           TIMESTAMP=$(date +'%Y%m%d')
-          ZIP_NAME="Kernel-lavender-4.4.302-${{ inputs.KERNEL_BRANCH }}${{ inputs.LOCALVERSION }}-${TIMESTAMP}.zip"
+          ZIP_NAME="lavender-4.4.302-${{ inputs.KERNEL_BRANCH }}${{ inputs.LOCALVERSION }}-${TIMESTAMP}.zip"
           zip -r9 "$ZIP_NAME" * -x ".git/*"
           
           echo "zip_path=$GITHUB_WORKSPACE/AnyKernel3/$ZIP_NAME" >> "$GITHUB_OUTPUT"
