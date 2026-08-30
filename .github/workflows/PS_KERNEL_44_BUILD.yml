@@ -143,7 +143,7 @@ jobs:
 
       - name: 📢 Notify Telegram - Build Started
         run: |
-          MESSAGE=$(printf '🛠️ <b>START BUILD</b>\n\n📱 <b>Device:</b> <code>Lavender</code>\n🏷️ <b>Kernel name:</b> <code>%s%s</code>\n📷 <b>Newcam Build:</b> <code>%s</code>\n🦊 <b>Built-in KSU:</b> <code>%s</code>\n🛠️ <b>Clang Version:</b> <code>AOSP Clang r383902</code>' "${{ env.KERNEL_VERSION }}" "${{ inputs.LOCALVERSION }}" "${{ inputs.BUILD_NEWCAM }}" "${{ inputs.INJECT_KSU }}")
+          MESSAGE=$(printf '🛠️ <b>START BUILD</b>\n\n📱 <b>Device:</b> <code>Lavender</code>\n🏷️ <b>Kernel name:</b> <code>%s-%s</code>\n📷 <b>Newcam Build:</b> <code>%s</code>\n🦊 <b>Built-in KSU:</b> <code>%s</code>\n🛠️ <b>Clang Version:</b> <code>AOSP Clang r383902</code>' "${{ env.KERNEL_VERSION }}" "${{ inputs.LOCALVERSION }}" "${{ inputs.BUILD_NEWCAM }}" "${{ inputs.INJECT_KSU }}")
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_API }}/sendMessage" --data-urlencode chat_id="${{ secrets.CHAT_ID }}" --data-urlencode parse_mode="HTML" --data-urlencode text="$MESSAGE"
           
       - name: 📝 Apply Tweak & Configs
@@ -229,7 +229,7 @@ jobs:
           DURATION=$((END_TIME - ${{ env.BUILD_START_TIME }}))
           DURATION_STR="$((DURATION / 60))m $((DURATION % 60))s"
 
-          MESSAGE=$(printf '✅ <b>BUILD SUCCESS</b>\n\n📱 <b>Device:</b> <code>Lavender</code>\n🏷️ <b>Kernel name:</b> <code>%s%s</code>\n📷 <b>Newcam Build:</b> <code>%s</code>\n🦊 <b>Built-in KSU:</b> <code>%s</code>\n🛠️ <b>Clang Version:</b> <code>AOSP Clang r383902</code>\n⏱️ <b>Time Elapsed:</b> <code>%s</code>' "${{ env.KERNEL_VERSION }}" "${{ inputs.LOCALVERSION }}" "${{ inputs.BUILD_NEWCAM }}" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
+          MESSAGE=$(printf '✅ <b>BUILD SUCCESS</b>\n\n📱 <b>Device:</b> <code>Lavender</code>\n🏷️ <b>Kernel name:</b> <code>%s-%s</code>\n📷 <b>Newcam Build:</b> <code>%s</code>\n🦊 <b>Built-in KSU:</b> <code>%s</code>\n🛠️ <b>Clang Version:</b> <code>AOSP Clang r383902</code>\n⏱️ <b>Time Elapsed:</b> <code>%s</code>' "${{ env.KERNEL_VERSION }}" "${{ inputs.LOCALVERSION }}" "${{ inputs.BUILD_NEWCAM }}" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
           
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_API }}/sendDocument" \
             -F chat_id="${{ secrets.CHAT_ID }}" \
@@ -244,7 +244,7 @@ jobs:
           DURATION=$((END_TIME - ${{ env.BUILD_START_TIME }}))
           DURATION_STR="$((DURATION / 60))m $((DURATION % 60))s"
 
-          MESSAGE=$(printf '❌ <b>BUILD FAILED</b>\n\n📱 <b>Device:</b> <code>Lavender</code>\n🏷️ <b>Kernel name:</b> <code>%s%s</code>\n📷 <b>Newcam Build:</b> <code>%s</code>\n🦊 <b>Built-in KSU:</b> <code>%s</code>\n🛠️ <b>Clang Version:</b> <code>AOSP Clang r383902</code>\n⏱️ <b>Time Elapsed:</b> <code>%s</code>\n\n💥 <i>Please check the build.log file above.</i>' "${{ env.KERNEL_VERSION }}" "${{ inputs.LOCALVERSION }}" "${{ inputs.BUILD_NEWCAM }}" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
+          MESSAGE=$(printf '❌ <b>BUILD FAILED</b>\n\n📱 <b>Device:</b> <code>Lavender</code>\n🏷️ <b>Kernel name:</b> <code>%s-%s</code>\n📷 <b>Newcam Build:</b> <code>%s</code>\n🦊 <b>Built-in KSU:</b> <code>%s</code>\n🛠️ <b>Clang Version:</b> <code>AOSP Clang r383902</code>\n⏱️ <b>Time Elapsed:</b> <code>%s</code>\n\n💥 <i>Please check the build.log file above.</i>' "${{ env.KERNEL_VERSION }}" "${{ inputs.LOCALVERSION }}" "${{ inputs.BUILD_NEWCAM }}" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
           
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_API }}/sendDocument" \
             -F chat_id="${{ secrets.CHAT_ID }}" \
