@@ -4,7 +4,7 @@ Automated GitHub Actions workflows to compile custom kernels for **Xiaomi Redmi 
 
 ---
 
-## 1. 🛠️ Predator Stormbreaker Kernel 4.4 (`predator_strombreaker.yml`)
+## 1. 🛠️ Predator Stormbreaker Kernel 4.4 (`PS_KERNEL_44_BUILD.yml`)
 
 A streamlined workflow designed to compile the Predator Stormbreaker Kernel variant using AOSP Clang.
 
@@ -17,7 +17,7 @@ A streamlined workflow designed to compile the Predator Stormbreaker Kernel vari
 
 ---
 
-## 2. 🛠️ San Kernel 4.4 (`san_kernel.yml`)
+## 2. 🛠️ San Kernel 4.4 (`SAN_KERNEL_44_BUILD.yml`)
 
 A feature-rich workflow for compiling San Kernel with support for multiple branches, advanced compression (`.xz`), and haptics control.
 
