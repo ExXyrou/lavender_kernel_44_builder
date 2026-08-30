@@ -24,8 +24,8 @@ on:
         description: '🖥️ Build Hostname (e.g., redmi)'
         required: true
         type: string
-      APPLY_TWEAKS:
-        description: '🚀 Apply Performance & Gaming Tweaks'
+      BUILD_NEWCAM:
+        description: '📷 Switch to Newcam Build'
         required: true
         default: false
         type: boolean
@@ -59,6 +59,21 @@ jobs:
       - name: ⏱️ Record Build Start Time
         run: echo "BUILD_START_TIME=$(date +%s)" >> $GITHUB_ENV
         
+      - name: 📥 Clone Kernel Source
+        run: |
+          rm -rf "${{ env.KERNEL_DIR }}"
+          git clone --depth=1 -b "${{ env.KERNEL_BRANCH }}" "${{ env.KERNEL_URL }}" "${{ env.KERNEL_DIR }}"
+
+      - name: 📖 Read Kernel Version
+        working-directory: ${{ env.KERNEL_DIR }}
+        run: |
+          KVER_MAJOR=$(grep -m1 '^VERSION =' Makefile | tr -d ' ' | cut -d'=' -f2)
+          KVER_PATCH=$(grep -m1 '^PATCHLEVEL =' Makefile | tr -d ' ' | cut -d'=' -f2)
+          KVER_SUB=$(grep -m1 '^SUBLEVEL =' Makefile | tr -d ' ' | cut -d'=' -f2)
+          FULL_KVER="${KVER_MAJOR}.${KVER_PATCH}.${KVER_SUB}"
+          echo "KERNEL_VERSION=$FULL_KVER" >> $GITHUB_ENV
+          echo "✅ Detected Kernel Version: $FULL_KVER"
+
       - name: 📦 Install Build Dependencies
         timeout-minutes: 10
         env:
@@ -92,16 +107,6 @@ jobs:
           restore-keys: |
             ccache-hmp-${{ env.DEFCONFIG }}-
 
-      - name: 📢 Notify Telegram - Build Started
-        run: |
-          MESSAGE=$(printf '🛠️ <b>START BUILD</b>\n\n📱 <b>Device:</b> Lavender\n🏷️ <b>Kernel name:</b> 4.4%s\n🦊 <b>Built-in KSU:</b> %s\n🛠️ <b>Clang Version:</b> AOSP Clang r383902' "${{ inputs.LOCALVERSION }}" "${{ inputs.INJECT_KSU }}")
-          curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_API }}/sendMessage" --data-urlencode chat_id="${{ secrets.CHAT_ID }}" --data-urlencode parse_mode="HTML" --data-urlencode text="$MESSAGE"
-
-      - name: 📥 Clone Kernel Source
-        run: |
-          rm -rf "${{ env.KERNEL_DIR }}"
-          git clone --depth=1 -b "${{ env.KERNEL_BRANCH }}" "${{ env.KERNEL_URL }}" "${{ env.KERNEL_DIR }}"
-
       - name: 🦊 Inject KernelSU
         if: ${{ inputs.INJECT_KSU == true }}
         working-directory: ${{ env.KERNEL_DIR }}
@@ -133,6 +138,11 @@ jobs:
           export PATH="$GITHUB_WORKSPACE/$CLANG_DIR/bin:$PATH"
           make O=$OUT_DIR ARCH=${{ env.ARCH }} CC=clang CROSS_COMPILE=aarch64-linux-gnu- CROSS_COMPILE_ARM32=arm-linux-gnueabi- ${{ env.DEFCONFIG }}
 
+      - name: 📢 Notify Telegram - Build Started
+        run: |
+          MESSAGE=$(printf '🛠️ <b>START BUILD</b>\n\n📱 <b>Device:</b> <code>Lavender</code>\n🏷️ <b>Kernel name:</b> <code>%s%s</code>\n📷 <b>Newcam Build:</b> <code>%s</code>\n🦊 <b>Built-in KSU:</b> <code>%s</code>\n🛠️ <b>Clang Version:</b> <code>AOSP Clang r383902</code>' "${{ env.KERNEL_VERSION }}" "${{ inputs.LOCALVERSION }}" "${{ inputs.BUILD_NEWCAM }}" "${{ inputs.INJECT_KSU }}")
+          curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_API }}/sendMessage" --data-urlencode chat_id="${{ secrets.CHAT_ID }}" --data-urlencode parse_mode="HTML" --data-urlencode text="$MESSAGE"
+          
       - name: 📝 Apply Tweak & Configs
         working-directory: ${{ env.KERNEL_DIR }}
         run: |
@@ -152,39 +162,9 @@ jobs:
             disable_config CONFIG_LOCALVERSION_AUTO
           fi
 
-          if [ "${{ inputs.APPLY_TWEAKS }}" == "true" ]; then
-            echo "Applying Tweaks..."
-            disable_config CONFIG_KASAN
-            disable_config CONFIG_LOCKDEP
-            disable_config CONFIG_PROVE_LOCKING
-            disable_config CONFIG_DEBUG_SPINLOCK
-            disable_config CONFIG_DEBUG_MUTEXES
-            disable_config CONFIG_DEBUG_ATOMIC_SLEEP
-            disable_config CONFIG_SLUB_DEBUG
-            disable_config CONFIG_MSM_KGSL_DEBUG
-            disable_config CONFIG_SCHED_DEBUG
-            enable_config CONFIG_SCHED_CORE_CTL
-            enable_config CONFIG_CPU_FREQ_GOV_INTERACTIVE
-            set_str CONFIG_DEFAULT_GOVERNOR "interactive"
-            enable_config CONFIG_CPU_BOOST
-            enable_config CONFIG_CPU_INPUT_BOOST
-            set_config CONFIG_HZ 300
-            enable_config CONFIG_HZ_300
-            enable_config CONFIG_NO_HZ_IDLE
-            disable_config CONFIG_SCHED_AUTOGROUP
-            enable_config CONFIG_RCU_BOOST
-            set_config CONFIG_RCU_BOOST_DELAY 500
-            disable_config CONFIG_MSM_ADRENO_IDLER
-            disable_config CONFIG_WQ_POWER_EFFICIENT_DEFAULT
-            enable_config CONFIG_ZRAM
-            enable_config CONFIG_ZRAM_LZ4_COMPRESS
-            enable_config CONFIG_CRYPTO_LZ4
-            enable_config CONFIG_MQ_IOSCHED_KYBER
-            enable_config CONFIG_IOSCHED_BFQ
-            set_str CONFIG_DEFAULT_IOSCHED "kyber"
-            enable_config CONFIG_NET_SCH_FQ
-            enable_config CONFIG_TCP_CONG_BBR
-            set_str CONFIG_DEFAULT_TCP_CONG "bbr"
+          if [ "${{ inputs.BUILD_NEWCAM }}" == "true" ]; then
+            echo "📷 Enabling Newcam support..."
+            enable_config CONFIG_XIAOMI_NEW_CAMERA_BLOBS
           fi
 
           if [ "${{ inputs.INJECT_KSU }}" == "true" ]; then
@@ -219,11 +199,22 @@ jobs:
           cp "$IMAGE" AnyKernel3/
           
           FINAL_LOCALVER="${{ inputs.LOCALVERSION }}"
-          [ -z "$FINAL_LOCALVER" ] && FINAL_LOCALVER=$(grep "^CONFIG_LOCALVERSION=" "$GITHUB_WORKSPACE/$KERNEL_DIR/$OUT_DIR/.config" | cut -d'"' -f2) || FINAL_LOCALVER=$(echo "$FINAL_LOCALVER" | sed 's/^-//')
+          if [ -z "$FINAL_LOCALVER" ]; then
+            FINAL_LOCALVER=$(grep "^CONFIG_LOCALVERSION=" "$GITHUB_WORKSPACE/$KERNEL_DIR/$OUT_DIR/.config" | cut -d'"' -f2 | sed 's/^-//')
+          else
+            FINAL_LOCALVER=$(echo "$FINAL_LOCALVER" | sed 's/^-//')
+          fi
+          
           sed -i -E 's/^(kernel\.string=).*/\1'"$FINAL_LOCALVER"'/' AnyKernel3/anykernel.sh
           
           TIMESTAMP=$(date +'%Y%m%d')
-          ZIP_NAME="Kernel-lavender-4.4${{ inputs.LOCALVERSION }}-${TIMESTAMP}.zip"
+          
+          if [ -n "$FINAL_LOCALVER" ]; then
+            ZIP_NAME="lavender-${{ env.KERNEL_VERSION }}-${FINAL_LOCALVER}-${TIMESTAMP}.zip"
+          else
+            ZIP_NAME="lavender-${{ env.KERNEL_VERSION }}-${TIMESTAMP}.zip"
+          fi
+          
           cd AnyKernel3 && zip -r9 "$ZIP_NAME" * -x ".git/*"
           echo "zip_path=$GITHUB_WORKSPACE/AnyKernel3/$ZIP_NAME" >> "$GITHUB_OUTPUT"
           echo "zip_name=$ZIP_NAME" >> "$GITHUB_OUTPUT"
@@ -235,7 +226,7 @@ jobs:
           DURATION=$((END_TIME - ${{ env.BUILD_START_TIME }}))
           DURATION_STR="$((DURATION / 60))m $((DURATION % 60))s"
 
-          MESSAGE=$(printf '✅ <b>BUILD SUCCESS</b>\n\n📱 <b>Device:</b> Lavender\n🏷️ <b>Kernel name:</b> 4.4%s\n🦊 <b>Built-in KSU:</b> %s\n🛠️ <b>Clang Version:</b> AOSP Clang r383902\n⏱️ <b>Time Elapsed:</b> %s' "${{ inputs.LOCALVERSION }}" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
+          MESSAGE=$(printf '✅ <b>BUILD SUCCESS</b>\n\n📱 <b>Device:</b> <code>Lavender</code>\n🏷️ <b>Kernel name:</b> <code>%s%s</code>\n📷 <b>Newcam Build:</b> <code>%s</code>\n🦊 <b>Built-in KSU:</b> <code>%s</code>\n🛠️ <b>Clang Version:</b> <code>AOSP Clang r383902</code>\n⏱️ <b>Time Elapsed:</b> <code>%s</code>' "${{ env.KERNEL_VERSION }}" "${{ inputs.LOCALVERSION }}" "${{ inputs.BUILD_NEWCAM }}" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
           
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_API }}/sendDocument" \
             -F chat_id="${{ secrets.CHAT_ID }}" \
@@ -250,7 +241,7 @@ jobs:
           DURATION=$((END_TIME - ${{ env.BUILD_START_TIME }}))
           DURATION_STR="$((DURATION / 60))m $((DURATION % 60))s"
 
-          MESSAGE=$(printf '❌ <b>BUILD FAILED</b>\n\n📱 <b>Device:</b> Lavender\n🏷️ <b>Kernel name:</b> 4.4%s\n🦊 <b>Built-in KSU:</b> %s\n🛠️ <b>Clang Version:</b> AOSP Clang r383902\n⏱️ <b>Time Elapsed:</b> %s\n\n💥 <i>Please check the build.log file above.</i>' "${{ inputs.LOCALVERSION }}" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
+          MESSAGE=$(printf '❌ <b>BUILD FAILED</b>\n\n📱 <b>Device:</b> <code>Lavender</code>\n🏷️ <b>Kernel name:</b> <code>%s%s</code>\n📷 <b>Newcam Build:</b> <code>%s</code>\n🦊 <b>Built-in KSU:</b> <code>%s</code>\n🛠️ <b>Clang Version:</b> <code>AOSP Clang r383902</code>\n⏱️ <b>Time Elapsed:</b> <code>%s</code>\n\n💥 <i>Please check the build.log file above.</i>' "${{ env.KERNEL_VERSION }}" "${{ inputs.LOCALVERSION }}" "${{ inputs.BUILD_NEWCAM }}" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
           
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_API }}/sendDocument" \
             -F chat_id="${{ secrets.CHAT_ID }}" \
