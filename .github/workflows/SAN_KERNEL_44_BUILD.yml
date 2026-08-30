@@ -18,7 +18,7 @@ on:
         default: false
         type: boolean
       LOCALVERSION:
-        description: '🏷️ Custom Kernel Name (e.g., -San-Kernel)'
+        description: '🏷️ Custom Kernel Name (e.g., San-Kernel)'
         required: false
         type: string
       LOCALVERSION_AUTO:
