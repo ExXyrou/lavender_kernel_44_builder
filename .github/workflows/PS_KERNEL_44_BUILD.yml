@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       LOCALVERSION:
-        description: '🏷️ Nama Kernel Kustom (misal: -MyKernel)'
+        description: '🏷️ Nama Kernel Kustom (misal: MyKernel-v1.0)'
         required: false
         type: string
       LOCALVERSION_AUTO:
