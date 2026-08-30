@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       LOCALVERSION:
-        description: '🏷️ Custom Kernel Name (e.g., -MyKernel-v1.0)'
+        description: '🏷️ Custom Kernel Name (e.g., Predato-Strombreaker-v1.0)'
         required: false
         type: string
       LOCALVERSION_AUTO:
