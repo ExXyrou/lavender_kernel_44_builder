@@ -236,7 +236,7 @@ jobs:
             CROSS_COMPILE=aarch64-linux-gnu- \
             CROSS_COMPILE_ARM32=arm-linux-gnueabi- ${{ env.DEFCONFIG }}
 
-      - name: 📝 Apply Tweaks & Configs
+      - name: 📝 Configure Configs
         working-directory: ${{ env.KERNEL_DIR }}
         run: |
           export PATH="$GITHUB_WORKSPACE/$CLANG_DIR/bin:$PATH"
