@@ -177,7 +177,7 @@ jobs:
           MESSAGE=$(printf '🛠️ <b>BUILD STARTED</b>\n\n📱 <b>Device:</b> <code>Lavender</code>\n🏷️ <b>Kernel Name:</b> <code>%s%s</code>\n📷 <b>Build Type:</b> <code>%s</code>\n🦊 <b>KSU Injection:</b> <code>%s</code>\n🛠️ <b>Clang Version:</b> <code>AOSP Clang r383902</code>' "${{ env.KERNEL_VERSION }}" "${{ env.KERNEL_NAME_STRING }}" "$CAM_TYPE" "${{ inputs.INJECT_KSU }}")
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_API }}/sendMessage" --data-urlencode chat_id="${{ secrets.CHAT_ID }}" --data-urlencode parse_mode="HTML" --data-urlencode text="$MESSAGE"
           
-      - name: 📝 Apply Tweaks & Configs
+      - name: 📝 Configure Configs
         working-directory: ${{ env.KERNEL_DIR }}
         run: |
           export PATH="$GITHUB_WORKSPACE/$CLANG_DIR/bin:$PATH"
