@@ -12,6 +12,7 @@ on:
           - PLTS
           - st74
           - st78
+          - test
       DISPLAY_BRANCH_NAME:
         description: '🏷️ Display Branch Name'
         required: true
