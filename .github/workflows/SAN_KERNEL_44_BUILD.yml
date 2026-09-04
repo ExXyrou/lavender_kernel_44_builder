@@ -10,6 +10,7 @@ on:
         type: choice
         options:
           - PLTS
+          - st74
           - test
       DISPLAY_BRANCH_NAME:
         description: '🏷️ Display Branch Name'
@@ -377,7 +378,9 @@ jobs:
             CAM_TYPE="oldcam"
           fi
 
-          if [ "${{ inputs.INJECT_KSU }}" == "kowsu" ]; then
+          if [ "${{ inputs.KERNEL_BRANCH }}" == "st74" ]; then
+            KSU_TEXT="<a href=\"https://t.me/exxyrouprojectfile/64?single\">ksun</a>"
+          elif [ "${{ inputs.INJECT_KSU }}" == "kowsu" ]; then
             KSU_TEXT="<a href=\"https://t.me/kowsu_build\">kowsu</a>"
           elif [ "${{ inputs.INJECT_KSU }}" == "xxksu" ]; then
             KSU_TEXT="<a href=\"${{ env.KSU_LINK }}\">xxksu</a>"
@@ -406,7 +409,9 @@ jobs:
             CAM_TYPE="oldcam"
           fi
 
-          if [ "${{ inputs.INJECT_KSU }}" == "kowsu" ]; then
+          if [ "${{ inputs.KERNEL_BRANCH }}" == "st74" ]; then
+            KSU_TEXT="<a href=\"https://t.me/exxyrouprojectfile/64?single\">ksun</a>"
+          elif [ "${{ inputs.INJECT_KSU }}" == "kowsu" ]; then
             KSU_TEXT="<a href=\"https://t.me/kowsu_build\">kowsu</a>"
           elif [ "${{ inputs.INJECT_KSU }}" == "xxksu" ]; then
             KSU_TEXT="<a href=\"${{ env.KSU_LINK }}\">xxksu</a>"
