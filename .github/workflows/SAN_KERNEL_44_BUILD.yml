@@ -385,7 +385,7 @@ jobs:
             KSU_TEXT="<code>none</code>"
           fi
 
-          MESSAGE=$(printf '✅ <b>BUILD SUCCESS</b>\n\n📱 <b>Device:</b> <code>Lavender</code>\n🏷️ <b>Kernel Name:</b> <code>%s%s</code>\n📷 <b>Build Type:</b> <code>%s</code>\n📳 <b>QTI Haptics Support:</b> <code>%s</code>\n🦊 <b>KSU Injection:</b> %s\n🛠️ <b>Clang Version:</b> <code>ZyC Clang 15.0.7</code>\n⏱️ <b>Time Elapsed:</b> <code>%s</code>\n\n<b>Trigger By:<b> %s' "${{ env.KERNEL_VERSION }}" "${{ env.KERNEL_NAME_STRING }}" "$CAM_TYPE" "${{ inputs.QTI_HAPTICS }}" "$KSU_TEXT" "$DURATION_STR" "${{ secrets.TG_USERNAME }}")
+          MESSAGE=$(printf '✅ <b>BUILD SUCCESS</b>\n\n📱 <b>Device:</b> <code>Lavender</code>\n🏷️ <b>Kernel Name:</b> <code>%s%s</code>\n📷 <b>Build Type:</b> <code>%s</code>\n📳 <b>QTI Haptics Support:</b> <code>%s</code>\n🦊 <b>KSU Injection:</b> %s\n🛠️ <b>Clang Version:</b> <code>ZyC Clang 15.0.7</code>\n⏱️ <b>Time Elapsed:</b> <code>%s</code>\n\n<b>By:<b> %s' "${{ env.KERNEL_VERSION }}" "${{ env.KERNEL_NAME_STRING }}" "$CAM_TYPE" "${{ inputs.QTI_HAPTICS }}" "$KSU_TEXT" "$DURATION_STR" "${{ secrets.TG_USERNAME }}")
           
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_API }}/sendDocument" \
             -F chat_id="${{ secrets.CHAT_ID }}" \
@@ -414,7 +414,7 @@ jobs:
             KSU_TEXT="<code>none</code>"
           fi
 
-          MESSAGE=$(printf '❌ <b>BUILD FAILED</b>\n\n📱 <b>Device:</b> <code>Lavender</code>\n🏷️ <b>Kernel Name:</b> <code>%s%s</code>\n📷 <b>Build Type:</b> <code>%s</code>\n📳 <b>QTI Haptics Support:</b> <code>%s</code>\n🦊 <b>KSU Injection:</b> %s\n🛠️ <b>Clang Version:</b> <code>ZyC Clang 15.0.7</code>\n⏱️ <b>Time Elapsed:</b> <code>%s</code>\n\n💥 <i>Check the build.log file above for error details.</i>\n\n<b>Trigger By:<b> %s' "${{ env.KERNEL_VERSION }}" "${{ env.KERNEL_NAME_STRING }}" "$CAM_TYPE" "${{ inputs.QTI_HAPTICS }}" "$KSU_TEXT" "$DURATION_STR" "${{ secrets.TG_USERNAME }}")
+          MESSAGE=$(printf '❌ <b>BUILD FAILED</b>\n\n📱 <b>Device:</b> <code>Lavender</code>\n🏷️ <b>Kernel Name:</b> <code>%s%s</code>\n📷 <b>Build Type:</b> <code>%s</code>\n📳 <b>QTI Haptics Support:</b> <code>%s</code>\n🦊 <b>KSU Injection:</b> %s\n🛠️ <b>Clang Version:</b> <code>ZyC Clang 15.0.7</code>\n⏱️ <b>Time Elapsed:</b> <code>%s</code>\n\n💥 <i>Check the build.log file above for error details.</i>\n\n<b>By:<b> %s' "${{ env.KERNEL_VERSION }}" "${{ env.KERNEL_NAME_STRING }}" "$CAM_TYPE" "${{ inputs.QTI_HAPTICS }}" "$KSU_TEXT" "$DURATION_STR" "${{ secrets.TG_USERNAME }}")
           
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_API }}/sendDocument" \
             -F chat_id="${{ secrets.CHAT_ID }}" \
