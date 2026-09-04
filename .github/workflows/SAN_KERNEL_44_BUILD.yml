@@ -53,8 +53,12 @@ on:
       INJECT_KSU:
         description: '🦊 Inject KernelSU'
         required: true
-        default: false
-        type: boolean
+        default: 'none'
+        type: choice
+        options:
+          - none
+          - kowsu
+          - xxksu
 
 env:
   KERNEL_DIR: kernel_source
@@ -156,9 +160,15 @@ jobs:
             ccache-eas-${{ env.DEFCONFIG }}-
             
       - name: 🦊 Setup KernelSU
-        if: ${{ inputs.INJECT_KSU == true }}
+        if: ${{ inputs.INJECT_KSU != 'none' }}
         working-directory: ${{ env.KERNEL_DIR }}
         run: |
+          if [ "${{ inputs.INJECT_KSU }}" == "kowsu" ]; then
+            export KSU_EXPECTED_SIZE="0x375"
+            export KSU_EXPECTED_HASH="484fcba6e6c43b1fb09700633bf2fb4758f13cb0b2f4457b80d075084b26c588"
+            export KSU_MANAGER_PACKAGE="com.kowx712.supermanager"
+          fi
+          
           curl -LSs "https://raw.githubusercontent.com/backslashxx/KernelSU/refs/heads/master/kernel/setup.sh" | bash -s master
           
           KSU_RELEASE_JSON=$(curl -s https://api.github.com/repos/backslashxx/KernelSU/releases/latest)
@@ -212,17 +222,6 @@ jobs:
         run: |
           [ -f kernel/sched/sched.h ] && sed -i 's/cpu_rq(cpu)->cfs->cumulative_runnable_avg/cpu_rq(cpu)->cfs.cumulative_runnable_avg/g' kernel/sched/sched.h
 
-      - name: 📢 Telegram Notification - Build Started
-        run: |
-          if [ "${{ inputs.BUILD_NEWCAM }}" == "true" ]; then
-            CAM_TYPE="newcam"
-          else
-            CAM_TYPE="oldcam"
-          fi
-          
-          MESSAGE=$(printf '🛠️ <b>BUILD STARTED</b>\n\n📱 <b>Device:</b> <code>Lavender</code>\n🏷️ <b>Kernel Name:</b> <code>%s%s</code>\n📷 <b>Build Type:</b> <code>%s</code>\n📳 <b>QTI Haptics Support:</b> <code>%s</code>\n🦊 <b>KSU Injection:</b> <code>%s</code>\n🛠️ <b>Clang Version:</b> <code>ZyC Clang 15.0.7</code>' "${{ env.KERNEL_VERSION }}" "${{ env.KERNEL_NAME_STRING }}" "$CAM_TYPE" "${{ inputs.QTI_HAPTICS }}" "${{ inputs.INJECT_KSU }}")
-          curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_API }}/sendMessage" --data-urlencode chat_id="${{ secrets.CHAT_ID }}" --data-urlencode parse_mode="HTML" --data-urlencode text="$MESSAGE"
-
       - name: ⚙️ Generate Defconfig
         working-directory: ${{ env.KERNEL_DIR }}
         run: |
@@ -274,7 +273,7 @@ jobs:
             enable_config CONFIG_XIAOMI_NEW_CAMERA_BLOBS
           fi
 
-          if [ "${{ inputs.INJECT_KSU }}" == "true" ]; then
+          if [ "${{ inputs.INJECT_KSU }}" != "none" ]; then
             echo "🦊 Applying KernelSU configuration..."
             enable_config CONFIG_KSU
             enable_config CONFIG_KSU_TAMPER_SYSCALL_TABLE
@@ -378,13 +377,15 @@ jobs:
             CAM_TYPE="oldcam"
           fi
 
-          if [ "${{ inputs.INJECT_KSU }}" == "true" ]; then
-            KSU_TEXT="true (<a href=\"${{ env.KSU_LINK }}\">link</a>)"
+          if [ "${{ inputs.INJECT_KSU }}" == "kowsu" ]; then
+            KSU_TEXT="<a href=\"https://t.me/kowsu_build\">kowsu</a>"
+          elif [ "${{ inputs.INJECT_KSU }}" == "xxksu" ]; then
+            KSU_TEXT="<a href=\"${{ env.KSU_LINK }}\">xxksu</a>"
           else
-            KSU_TEXT="false"
+            KSU_TEXT="<code>none</code>"
           fi
 
-          MESSAGE=$(printf '✅ <b>BUILD SUCCESS</b>\n\n📱 <b>Device:</b> <code>Lavender</code>\n🏷️ <b>Kernel Name:</b> <code>%s%s</code>\n📷 <b>Build Type:</b> <code>%s</code>\n📳 <b>QTI Haptics Support:</b> <code>%s</code>\n🦊 <b>KSU Injection:</b> %s\n🛠️ <b>Clang Version:</b> <code>ZyC Clang 15.0.7</code>\n⏱️ <b>Time Elapsed:</b> <code>%s</code>' "${{ env.KERNEL_VERSION }}" "${{ env.KERNEL_NAME_STRING }}" "$CAM_TYPE" "${{ inputs.QTI_HAPTICS }}" "$KSU_TEXT" "$DURATION_STR")
+          MESSAGE=$(printf '✅ <b>BUILD SUCCESS</b>\n\n📱 <b>Device:</b> <code>Lavender</code>\n🏷️ <b>Kernel Name:</b> <code>%s%s</code>\n📷 <b>Build Type:</b> <code>%s</code>\n📳 <b>QTI Haptics Support:</b> <code>%s</code>\n🦊 <b>KSU Injection:</b> %s\n🛠️ <b>Clang Version:</b> <code>ZyC Clang 15.0.7</code>\n⏱️ <b>Time Elapsed:</b> <code>%s</code>\n\nTrigger By: %s' "${{ env.KERNEL_VERSION }}" "${{ env.KERNEL_NAME_STRING }}" "$CAM_TYPE" "${{ inputs.QTI_HAPTICS }}" "$KSU_TEXT" "$DURATION_STR" "${{ secrets.TG_USERNAME }}")
           
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_API }}/sendDocument" \
             -F chat_id="${{ secrets.CHAT_ID }}" \
@@ -405,7 +406,15 @@ jobs:
             CAM_TYPE="oldcam"
           fi
 
-          MESSAGE=$(printf '❌ <b>BUILD FAILED</b>\n\n📱 <b>Device:</b> <code>Lavender</code>\n🏷️ <b>Kernel Name:</b> <code>%s%s</code>\n📷 <b>Build Type:</b> <code>%s</code>\n📳 <b>QTI Haptics Support:</b> <code>%s</code>\n🦊 <b>KSU Injection:</b> <code>%s</code>\n🛠️ <b>Clang Version:</b> <code>ZyC Clang 15.0.7</code>\n⏱️ <b>Time Elapsed:</b> <code>%s</code>\n\n💥 <i>Check the build.log file above for error details.</i>' "${{ env.KERNEL_VERSION }}" "${{ env.KERNEL_NAME_STRING }}" "$CAM_TYPE" "${{ inputs.QTI_HAPTICS }}" "${{ inputs.INJECT_KSU }}" "$DURATION_STR")
+          if [ "${{ inputs.INJECT_KSU }}" == "kowsu" ]; then
+            KSU_TEXT="<a href=\"https://t.me/kowsu_build\">kowsu</a>"
+          elif [ "${{ inputs.INJECT_KSU }}" == "xxksu" ]; then
+            KSU_TEXT="<a href=\"${{ env.KSU_LINK }}\">xxksu</a>"
+          else
+            KSU_TEXT="<code>none</code>"
+          fi
+
+          MESSAGE=$(printf '❌ <b>BUILD FAILED</b>\n\n📱 <b>Device:</b> <code>Lavender</code>\n🏷️ <b>Kernel Name:</b> <code>%s%s</code>\n📷 <b>Build Type:</b> <code>%s</code>\n📳 <b>QTI Haptics Support:</b> <code>%s</code>\n🦊 <b>KSU Injection:</b> %s\n🛠️ <b>Clang Version:</b> <code>ZyC Clang 15.0.7</code>\n⏱️ <b>Time Elapsed:</b> <code>%s</code>\n\n💥 <i>Check the build.log file above for error details.</i>\n\nTrigger By: %s' "${{ env.KERNEL_VERSION }}" "${{ env.KERNEL_NAME_STRING }}" "$CAM_TYPE" "${{ inputs.QTI_HAPTICS }}" "$KSU_TEXT" "$DURATION_STR" "${{ secrets.TG_USERNAME }}")
           
           curl -s -X POST "https://api.telegram.org/bot${{ secrets.BOT_API }}/sendDocument" \
             -F chat_id="${{ secrets.CHAT_ID }}" \
